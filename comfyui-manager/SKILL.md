@@ -9,17 +9,17 @@ description: Manage ComfyUI server, models, workflows, LoRAs, queues, dependenci
 
 本 skill 和 `comfyui-animatool` 是**互补关系**，不是替代关系：
 
-| 能力                              | comfyui-animatool         | comfyui-manager (本 skill)                                                                                                        |
-| --------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 能力                              | comfyui-animatool         | comfyui-manager (本 skill)                                                                                                         |
+| --------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Anima 二次元生图                  | ✅ 负责 Anima prompt 策略 | ✅ 可通过已导入工作流执行，返回 `outputs[].local_path`；默认工作流使用 aesthetic LoRA 增强，包含 FLSampler + TeaCache + RTX VSR 2× |
-| 释放显存/卸载模型                 | ❌                        | ✅ `comfyui-skill free`                                                                                                           |
-| 管理工作流（导入/启用/禁用）      | ❌                        | ✅ `comfyui-skill workflow *`                                                                                                     |
-| 查模型列表（checkpoint/LoRA/VAE） | ❌ 只有基础列表           | ✅ 完整文件夹浏览                                                                                                                 |
-| 切换 LoRA / 更换模型              | ❌                        | ✅ 通过 run workflow 传不同参数                                                                                                   |
-| 查 ComfyUI 节点                   | ❌                        | ✅ `comfyui-skill nodes *`                                                                                                        |
-| 队列管理                          | ❌                        | ✅ `comfyui-skill queue *`                                                                                                        |
-| 依赖安装                          | ❌                        | ✅ `comfyui-skill deps *`                                                                                                         |
-| 工作流链式执行                    | ❌                        | ✅ `run → upload --from-output → run`                                                                                             |
+| 释放显存/卸载模型                 | ❌                        | ✅ `comfyui-skill free`                                                                                                            |
+| 管理工作流（导入/启用/禁用）      | ❌                        | ✅ `comfyui-skill workflow *`                                                                                                      |
+| 查模型列表（checkpoint/LoRA/VAE） | ❌ 只有基础列表           | ✅ 完整文件夹浏览                                                                                                                  |
+| 切换 LoRA / 更换模型              | ❌                        | ✅ 通过 run workflow 传不同参数                                                                                                    |
+| 查 ComfyUI 节点                   | ❌                        | ✅ `comfyui-skill nodes *`                                                                                                         |
+| 队列管理                          | ❌                        | ✅ `comfyui-skill queue *`                                                                                                         |
+| 依赖安装                          | ❌                        | ✅ `comfyui-skill deps *`                                                                                                          |
+| 工作流链式执行                    | ❌                        | ✅ `run → upload --from-output → run`                                                                                              |
 
 **使用原则**：
 
@@ -46,10 +46,10 @@ PowerShell 兜底解析示例：
 
 ```powershell
 $candidates = @(
-  (Join-Path $env:USERPROFILE ".snow/skills/comfyui-good-anima/comfyui-manager/workspace"),
-  (Join-Path $env:USERPROFILE ".codex/skills/comfyui-good-anima/comfyui-manager/workspace"),
-  (Join-Path $env:USERPROFILE ".snow/skills/comfyui-manager/workspace"),
-  (Join-Path $env:USERPROFILE ".codex/skills/comfyui-manager/workspace")
+  (Join-Path $env:USERPROFILE ".snow\skills\comfyui-good-anima\comfyui-manager\workspace"),
+  (Join-Path $env:USERPROFILE ".codex\skills\comfyui-good-anima\comfyui-manager\workspace"),
+  (Join-Path $env:USERPROFILE ".snow\skills\comfyui-manager\workspace"),
+  (Join-Path $env:USERPROFILE ".codex\skills\comfyui-manager\workspace")
 )
 $WORKSPACE = $candidates | Where-Object {
   (Test-Path (Join-Path $_ "config.json")) -and (Test-Path (Join-Path $_ "data"))
@@ -77,10 +77,10 @@ local/anima-txt2img-aesthetic-lora-artist-mixer
 
 该工作流使用 `AnimaArtistPack` / `AnimaArtistCrossAttn` 将画师串拆分并在 Anima cross-attention 层混合。使用时把画师写入 `artist_chain`，主提示词写入 `prompt_11`，不要在 `prompt_11` 里重复堆叠画师名。默认 `combine_mode=output_avg`、`fusion_mode=interpolate`、`artist_mixer_strength=0.7`、`artist_mixer_normalize_weights=true`、`artist_mixer_apply_to_uncond=false`。普通单画师或未明确要求画师串时不要使用该工作流。
 
-**始终添加 `cd` 到命令前**：
+**始终添加 --dir "$WORKSPACE" 参数**：
 
 ```powershell
-cd "$WORKSPACE" && comfyui-skill
+comfyui-skill --dir "$WORKSPACE"
 ```
 
 ## 常规生图最短路径
@@ -112,10 +112,10 @@ node .\run_workflow_args.js run local/anima-txt2img-aesthetic-lora .\args_anima.
 检查命令统一使用 `--json` 全局前置：
 
 ```powershell
-cd WORKSPACE && comfyui-skill --json models list diffusion_models
-cd WORKSPACE && comfyui-skill --json models list text_encoders
-cd WORKSPACE && comfyui-skill --json models list vae
-cd WORKSPACE && comfyui-skill --json models list loras
+comfyui-skill --json --dir "$WORKSPACE" models list diffusion_models
+comfyui-skill --json --dir "$WORKSPACE" models list text_encoders
+comfyui-skill --json --dir "$WORKSPACE" models list vae
+comfyui-skill --json --dir "$WORKSPACE" models list loras
 ```
 
 如果工作流 JSON 里的值不在扫描结果中，例如模型实际位于 `split_files\diffusion_models\...` 子目录，需要修正 workflow JSON 后重新导入。只有 `deps check` 明确报告缺失模型时，才按本节处理；不要遇到 400 就先猜模型路径。
@@ -162,70 +162,83 @@ cd WORKSPACE && comfyui-skill --json models list loras
 - 运行 SDXL/FLUX/SD3 等工作流
 - 执行图生图、视频生成等
 
+## 全局选项
+
+以下全局选项适用于所有 `comfyui-skill` 命令：
+
+| 选项                | 说明                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `--json` / `-j`     | 强制 JSON 结构化输出，AI Agent 解析用                                                  |
+| `--dir` / `-d`      | 指定项目数据目录（默认：当前目录）。本 skill 统一使用 `--dir "$WORKSPACE"`             |
+| `--server` / `-s`   | 指定服务器 ID（默认：`local`）                                                         |
+| `--output-format`   | 输出格式：`text`（终端表格）、`json`（单次 JSON）、`stream-json`（实时 NDJSON 事件流） |
+| `--verbose` / `-v`  | 详细输出，用于调试                                                                     |
+| `--no-update-check` | 跳过自动更新检查                                                                       |
+
 ## 命令速查
 
 ### 服务器管理
 
 ```powershell
 # 查服务器状态
-cd WORKSPACE && comfyui-skill --json server status
+comfyui-skill --json --dir "$WORKSPACE" server status
 
 # 查系统统计（VRAM/RAM/版本）
-cd WORKSPACE && comfyui-skill --json server stats
+comfyui-skill --json --dir "$WORKSPACE" server stats
 
 # 列出所有服务器
-cd WORKSPACE && comfyui-skill --json server list
+comfyui-skill --json --dir "$WORKSPACE" server list
 ```
 
 ### 模型管理
 
 ```powershell
 # 列出所有模型文件夹
-cd WORKSPACE && comfyui-skill --json models list
+comfyui-skill --json --dir "$WORKSPACE" models list
 
 # 列出 checkpoints
-cd WORKSPACE && comfyui-skill --json models list checkpoints
+comfyui-skill --json --dir "$WORKSPACE" models list checkpoints
 
 # 列出 LoRAs
-cd WORKSPACE && comfyui-skill --json models list loras
+comfyui-skill --json --dir "$WORKSPACE" models list loras
 
 # 列出 VAEs
-cd WORKSPACE && comfyui-skill --json models list vae
+comfyui-skill --json --dir "$WORKSPACE" models list vae
 
 # 列出 ControlNet
-cd WORKSPACE && comfyui-skill --json models list controlnet
+comfyui-skill --json --dir "$WORKSPACE" models list controlnet
 
 # 列出 UNet / 扩散模型
-cd WORKSPACE && comfyui-skill --json models list diffusion_models
+comfyui-skill --json --dir "$WORKSPACE" models list diffusion_models
 
 # 列出文本编码器
-cd WORKSPACE && comfyui-skill --json models list text_encoders
+comfyui-skill --json --dir "$WORKSPACE" models list text_encoders
 
 # 释放 GPU 显存（卸载模型）
-cd WORKSPACE && comfyui-skill free --models
+comfyui-skill --dir "$WORKSPACE" free --models
 
 # 释放缓存
-cd WORKSPACE && comfyui-skill free --memory
+comfyui-skill --dir "$WORKSPACE" free --memory
 ```
 
 ### 工作流管理
 
 ```powershell
 # 列出所有已导入的工作流
-cd WORKSPACE && comfyui-skill --json list
+comfyui-skill --json --dir "$WORKSPACE" list
 
 # 查看工作流详情和参数 schema
-cd WORKSPACE && comfyui-skill --json info local/workflow_id
+comfyui-skill --json --dir "$WORKSPACE" info local/workflow_id
 
 # 从 JSON 文件导入工作流
-cd WORKSPACE && comfyui-skill --json workflow import D:\path\to\workflow.json --check-deps
+comfyui-skill --json --dir "$WORKSPACE" workflow import D:\path\to\workflow.json --check-deps
 
 # 启用/禁用工作流
-cd WORKSPACE && comfyui-skill --json workflow enable local/workflow_id
-cd WORKSPACE && comfyui-skill --json workflow disable local/workflow_id
+comfyui-skill --json --dir "$WORKSPACE" workflow enable local/workflow_id
+comfyui-skill --json --dir "$WORKSPACE" workflow disable local/workflow_id
 
 # 删除工作流
-cd WORKSPACE && comfyui-skill --json workflow delete local/workflow_id
+comfyui-skill --json --dir "$WORKSPACE" workflow delete local/workflow_id
 ```
 
 ### 执行工作流
@@ -355,10 +368,10 @@ cd WORKSPACE && node .\run_workflow_args.js run local/workflow_id .\args.json
 cd WORKSPACE && node .\run_workflow_args.js submit local/workflow_id .\args.json
 
 # 检查执行状态
-cd WORKSPACE && comfyui-skill --json status <prompt_id>
+comfyui-skill --json --dir "$WORKSPACE" status <prompt_id>
 
 # 取消任务
-cd WORKSPACE && comfyui-skill --json cancel <prompt_id>
+comfyui-skill --json --dir "$WORKSPACE" cancel <prompt_id>
 
 # 用优先级跳跃队列（负数插队）时也继续走 run_workflow_args.js，额外 CLI 参数放在 JSON 文件参数之后。
 cd WORKSPACE && node .\run_workflow_args.js run local/workflow_id .\args.json --priority -1
@@ -368,79 +381,79 @@ cd WORKSPACE && node .\run_workflow_args.js run local/workflow_id .\args.json --
 
 ```powershell
 # 上传本地文件
-cd WORKSPACE && comfyui-skill --json upload D:\path\to\image.png
+comfyui-skill --json --dir "$WORKSPACE" upload D:\path\to\image.png
 
 # 链式上传：把上次工作流的输出当输入
-cd WORKSPACE && comfyui-skill --json upload --from-output <prompt_id>
+comfyui-skill --json --dir "$WORKSPACE" upload --from-output <prompt_id>
 ```
 
 ### 节点查询
 
 ```powershell
 # 列出所有节点（按类别分组）
-cd WORKSPACE && comfyui-skill --json nodes list
+comfyui-skill --json --dir "$WORKSPACE" nodes list
 
 # 查看单个节点详情
-cd WORKSPACE && comfyui-skill --json nodes info <node_class_name>
+comfyui-skill --json --dir "$WORKSPACE" nodes info <node_class_name>
 
 # 模糊搜索节点
-cd WORKSPACE && comfyui-skill --json nodes search <keyword>
+comfyui-skill --json --dir "$WORKSPACE" nodes search <keyword>
 ```
 
 ### 队列管理
 
 ```powershell
 # 查看运行中和排队的任务
-cd WORKSPACE && comfyui-skill --json queue list
+comfyui-skill --json --dir "$WORKSPACE" queue list
 
 # 清空所有排队的任务（不影响正在运行的）
-cd WORKSPACE && comfyui-skill --json queue clear
+comfyui-skill --json --dir "$WORKSPACE" queue clear
 
 # 删除特定排队任务
-cd WORKSPACE && comfyui-skill --json queue delete <prompt_id>
+comfyui-skill --json --dir "$WORKSPACE" queue delete <prompt_id>
 ```
 
 ### 依赖管理
 
 ```powershell
 # 检查工作流缺少的节点/模型
-cd WORKSPACE && comfyui-skill --json deps check local/workflow_id
+comfyui-skill --json --dir "$WORKSPACE" deps check local/workflow_id
 
 # 自动安装所有缺少的依赖
-cd WORKSPACE && comfyui-skill --json deps install local/workflow_id --all
+comfyui-skill --json --dir "$WORKSPACE" deps install local/workflow_id --all
 ```
 
 ### 日志与历史
 
 ```powershell
 # 查看服务器日志
-cd WORKSPACE && comfyui-skill --json logs show
+comfyui-skill --json --dir "$WORKSPACE" logs show
 
 # 查看执行历史
-cd WORKSPACE && comfyui-skill --json history list local/workflow_id
+comfyui-skill --json --dir "$WORKSPACE" history list local/workflow_id
 
 # 查看单次执行详情
-cd WORKSPACE && comfyui-skill --json history show local/workflow_id <run_id>
+comfyui-skill --json --dir "$WORKSPACE" history show local/workflow_id <run_id>
 ```
 
 ### 模板与子图
 
 ```powershell
 # 查看可用工作流模板
-cd WORKSPACE && comfyui-skill --json templates list
+comfyui-skill --json --dir "$WORKSPACE" templates list
 
 # 查看可用子图组件
-cd WORKSPACE && comfyui-skill --json templates subgraphs
+comfyui-skill --json --dir "$WORKSPACE" templates subgraphs
 ```
 
 ### 配置管理
 
 ```powershell
 # 导出配置和工作流为可迁移包
-cd WORKSPACE && comfyui-skill config export --output D:\backup.zip --json
+comfyui-skill --dir "$WORKSPACE" config export --output D:\backup.zip --json
 
 # 导入配置包
-cd WORKSPACE && comfyui-skill config import D:\backup.zip --json
+comfyui-skill --dir "$WORKSPACE" config import D:\backup.zip --json
 ```
 
 ## JSON 输出处理
@@ -448,7 +461,7 @@ cd WORKSPACE && comfyui-skill config import D:\backup.zip --json
 `--json` 是全局标志，必须放在 `comfyui-skill` 之后、子命令之前。请求时始终使用：
 
 ```powershell
-comfyui-skill --json <command>
+comfyui-skill --json --dir "$WORKSPACE" <command>
 ```
 
 不要把 `--json` 放在命令末尾。正确：`comfyui-skill --json workflow import ...`；错误：`comfyui-skill workflow import ... --json`。
@@ -465,6 +478,20 @@ JSON 输出的典型结构：
 
 错误时 `"success": false`，错误信息在 `"error"` 字段，同时输出到 stderr。
 
+### 输出模式
+
+| 模式            | 用法                               | 说明                                       |
+| --------------- | ---------------------------------- | ------------------------------------------ |
+| **Text**        | 默认（终端 TTY）                   | Rich 表格和进度条，人类可读                |
+| **JSON**        | `--json` 或 `--output-format json` | 单次 JSON 结果，Agent 解析用               |
+| **Stream JSON** | `--output-format stream-json`      | 实时 NDJSON 事件流，用于长时间运行的工作流 |
+
+### 错误处理
+
+- 所有错误信息始终输出到 **stderr**，不会污染 stdout 的 JSON 输出
+- Agent 应分别捕获 stdout（数据）和 stderr（错误信息）
+- 非 0 退出码表示执行失败
+
 ## 工作流执行参数格式
 
 ⚠️ **args 文件格式**：必须是纯参数对象，不要包裹 `{ "workflow": "...", "args": { ... } }`。`run_workflow_args.js` 已通过命令参数接收 workflow id，args 文件只负责参数本身。本规则是 args 格式的唯一权威说明。
@@ -472,7 +499,7 @@ JSON 输出的典型结构：
 `--args` 参数接受 JSON 字符串。不同工作流有不同的参数 schema。先用 `info` 查看工作流的参数定义：
 
 ```powershell
-cd WORKSPACE && comfyui-skill info local/txt2img --json
+comfyui-skill --json --dir "$WORKSPACE" info local/txt2img
 ```
 
 然后根据返回的 schema 构造 args：
@@ -493,21 +520,21 @@ node .\run_workflow_args.js run local/txt2img .\args.json
 
 **场景：用户想换一个 LoRA 然后生成图片**
 
-1. 本 skill 查可用 LoRA → `comfyui-skill --json models list loras`
+1. 本 skill 查可用 LoRA → `comfyui-skill --json --dir "$WORKSPACE" models list loras`
 2. 告诉用户有哪些 LoRA 可选
 3. 当前默认 Anima 工作流的美学 LoRA 是固定节点，不通过普通 args 切换
 4. 若要更换 LoRA，复制/编辑工作流或新增暴露 LoRA 参数的 schema，再执行对应 workflow
 
 **场景：显存不够，需要清理**
 
-1. 先查状态 → `comfyui-skill --json server stats`
-2. 释放显存 → `comfyui-skill free --models`
-3. 再确认释放效果 → `comfyui-skill --json server stats`
+1. 先查状态 → `comfyui-skill --json --dir "$WORKSPACE" server stats`
+2. 释放显存 → `comfyui-skill --dir "$WORKSPACE" free --models`
+3. 再确认释放效果 → `comfyui-skill --json --dir "$WORKSPACE" server stats`
 
 **场景：导入并使用新的 FLUX 工作流**
 
-1. 导入 → `comfyui-skill workflow import D:\workflows\flux.json --check-deps --json`
-2. 查看参数 → `comfyui-skill info local/flux --json`
+1. 导入 → `comfyui-skill --json --dir "$WORKSPACE" workflow import D:\workflows\flux.json --check-deps`
+2. 查看参数 → `comfyui-skill --json --dir "$WORKSPACE" info local/flux`
 3. 运行 → `node .\run_workflow_args.js run local/flux .\args_flux.json`
 
 ## 工作流 ID 命名约定
@@ -530,8 +557,8 @@ node .\run_workflow_args.js run local/txt2img .\args.json
 5. 只有错误指向模型/CLIP/VAE/LoRA 字段，或 `deps check` 明确返回缺失模型时，才用 `comfyui-skill --json models list <category>` 核对可用文件名，并修正 workflow JSON 后重新导入。
 
 ```powershell
-cd WORKSPACE && comfyui-skill --json run local/anima-txt2img-aesthetic-lora --validate --args '{...}'
-cd WORKSPACE && comfyui-skill --json deps check local/anima-txt2img-aesthetic-lora
+comfyui-skill --json --dir "$WORKSPACE" run local/anima-txt2img-aesthetic-lora --validate --args '{...}'
+comfyui-skill --json --dir "$WORKSPACE" deps check local/anima-txt2img-aesthetic-lora
 ```
 
 快速查看详细错误：
