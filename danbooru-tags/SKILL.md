@@ -61,6 +61,22 @@ cd "$DANBOORU_TAGS_DIR"
 .\bin\danbooru-tags.exe --batch-workers 8 --batch-file .\batch_tags.json --for-prompt --json --compact
 ```
 
+> **⚠ PowerShell 5.x BOM 陷阱**：Windows PowerShell 5.1 中 `Set-Content -Encoding utf8` 会写入 UTF-8 BOM（`0xEF 0xBB 0xBF`），导致 Rust CLI 的 JSON 解析器报 `expected value at line 1 column 1`。此时须换用无 BOM 写法：
+>
+> ```powershell
+> $batchJson = @'
+> {
+>   "queries": [...]
+> }
+> '@
+> $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+> [System.IO.File]::WriteAllText("$pwd\batch_tags.json", $batchJson, $utf8NoBom)
+> ```
+>
+> pwsh 7.x（`pwsh.exe`）不受此影响，可继续使用 `Set-Content -Encoding utf8`。
+
+````
+
 批量输出按 `results.<id>.confirmed_tags` / `results.<id>.candidate_tags` 读取，`missing` 表示查不到，直接交给 `nltags`。不要把完整 JSON 复述给用户。
 
 `--batch-file` 文件必须是 JSON 对象，包含 `queries` 数组；每条 query 必须有唯一 `id`，用于返回时区分结果。最小格式：
@@ -72,29 +88,29 @@ cd "$DANBOORU_TAGS_DIR"
     { "id": "character", "group": "character", "keyword": "hakurei reimu", "limit": 5 }
   ]
 }
-```
+````
 
 默认只使用 Rust CLI。Rust CLI 不存在、启动失败、非 0、输出非 JSON 或缺少 `found / confirmed_tags / candidate_tags` 时，停止并报告错误，不切换旧检索实现。
 
 ## 调用场景
 
-| 场景 | 调用方式 | 是否生图 |
-|------|---------|---------|
-| 查标签/角色/作品/画师 | `bin\danbooru-tags.exe --group ...` | 否 |
-| 只要随机画师串 | `bin\danbooru-tags.exe --random N --json` | 否 |
-| 随机角色/服装/场景等候选 | `bin\danbooru-tags.exe --random N --group <group> --json` | 否 |
-| 生图前回填锚点 | `--batch-file` 一次查多项 | 由 comfyui-animatool 决定 |
-| 随机画师生图 | `bin\danbooru-tags.exe --random 5 --for-prompt --json --compact` | 由 comfyui-animatool 决定 |
+| 场景                     | 调用方式                                                         | 是否生图                  |
+| ------------------------ | ---------------------------------------------------------------- | ------------------------- |
+| 查标签/角色/作品/画师    | `bin\danbooru-tags.exe --group ...`                              | 否                        |
+| 只要随机画师串           | `bin\danbooru-tags.exe --random N --json`                        | 否                        |
+| 随机角色/服装/场景等候选 | `bin\danbooru-tags.exe --random N --group <group> --json`        | 否                        |
+| 生图前回填锚点           | `--batch-file` 一次查多项                                        | 由 comfyui-animatool 决定 |
+| 随机画师生图             | `bin\danbooru-tags.exe --random 5 --for-prompt --json --compact` | 由 comfyui-animatool 决定 |
 
 ## 随机画师规则
 
 `--random N` 的 `N` 是请求的候选数量，CLI 只提供候选，不替模型选择规模或结果。模型按任务自选 `N`：普通抽卡建议 10–50，硬上限 1–300；只有用户明确要求大量候选时才用 100–300。不传 `--group` 时默认随机画师；带 `--group` 时随机对应 tag 候选。`--random N` 和 `--random N --for-prompt` 语义不同，不能混用：
 
-| 用户意图 | 正确命令 | 输出字段 | 用法 |
-|----------|----------|----------|------|
-| 抽 N 个候选画师给模型挑 1 个 | `.\bin\danbooru-tags.exe --random N --json` | `random_artists`，长度 N | 只调用一次；模型从数组里选 1 个 |
-| 抽 N 个角色/服装/姿势/场景候选 | `.\bin\danbooru-tags.exe --random N --group clothing --json` | `random_tags`，长度 N | 只调用一次；模型按意图筛选 |
-| 随机 1 个画师直接用于生图 | `.\bin\danbooru-tags.exe --random 5 --for-prompt --json --compact` | `random_artists_for_prompt`，长度 1 | 直接使用 `[0]` |
+| 用户意图                       | 正确命令                                                           | 输出字段                            | 用法                            |
+| ------------------------------ | ------------------------------------------------------------------ | ----------------------------------- | ------------------------------- |
+| 抽 N 个候选画师给模型挑 1 个   | `.\bin\danbooru-tags.exe --random N --json`                        | `random_artists`，长度 N            | 只调用一次；模型从数组里选 1 个 |
+| 抽 N 个角色/服装/姿势/场景候选 | `.\bin\danbooru-tags.exe --random N --group clothing --json`       | `random_tags`，长度 N               | 只调用一次；模型按意图筛选      |
+| 随机 1 个画师直接用于生图      | `.\bin\danbooru-tags.exe --random 5 --for-prompt --json --compact` | `random_artists_for_prompt`，长度 1 | 直接使用 `[0]`                  |
 
 硬性要求：
 
@@ -127,21 +143,21 @@ cd "$DANBOORU_TAGS_DIR"
 
 优先用 `--group` 定向检索：
 
-| Group | 用途 |
-|-------|------|
-| `artist` / `artists` | 画师 |
-| `character` / `characters` | 角色 |
-| `series` / `ip` / `copyright` | 作品/IP |
-| `appearance` / `body` | 发色、发型、瞳色、耳、角、翅膀、体型 |
-| `expression` | 表情/神态 |
-| `pose` / `action` / `camera` | 姿势、动作、视角、构图、景别 |
-| `clothing` / `outfit` | 基础服装 |
-| `clothing_detail` / `detail` | 服装细节、毛边、兜帽、披风等 |
-| `handwear` | 手套、爪手套等 |
-| `accessory` / `accessories` | 配饰 |
-| `scene` / `background` / `composition` | 场景、背景、天气、构图 |
-| `lighting` / `light` / `atmosphere` | 光影、阴影、逆光、窗影、景深、氛围 |
-| `meta` | highres、official art 等元信息 |
+| Group                                  | 用途                                 |
+| -------------------------------------- | ------------------------------------ |
+| `artist` / `artists`                   | 画师                                 |
+| `character` / `characters`             | 角色                                 |
+| `series` / `ip` / `copyright`          | 作品/IP                              |
+| `appearance` / `body`                  | 发色、发型、瞳色、耳、角、翅膀、体型 |
+| `expression`                           | 表情/神态                            |
+| `pose` / `action` / `camera`           | 姿势、动作、视角、构图、景别         |
+| `clothing` / `outfit`                  | 基础服装                             |
+| `clothing_detail` / `detail`           | 服装细节、毛边、兜帽、披风等         |
+| `handwear`                             | 手套、爪手套等                       |
+| `accessory` / `accessories`            | 配饰                                 |
+| `scene` / `background` / `composition` | 场景、背景、天气、构图               |
+| `lighting` / `light` / `atmosphere`    | 光影、阴影、逆光、窗影、景深、氛围   |
+| `meta`                                 | highres、official art 等元信息       |
 
 Anima 特殊控制词边界：
 
@@ -167,12 +183,42 @@ Anima 特殊控制词边界：
 ```json
 {
   "queries": [
-    {"id": "miko_clothing", "group": "clothing", "keyword": "miko", "limit": 5},
-    {"id": "miko_general", "category": "general", "keyword": "miko", "limit": 5},
-    {"id": "miko_hakama", "group": "clothing", "keyword": "hakama", "limit": 5},
-    {"id": "miko_sleeves", "group": "clothing", "keyword": "wide sleeves", "limit": 5},
-    {"id": "miko_detached_sleeves", "group": "clothing", "keyword": "detached sleeves", "limit": 5},
-    {"id": "miko_japanese_clothes", "group": "clothing", "keyword": "japanese clothes", "limit": 5}
+    {
+      "id": "miko_clothing",
+      "group": "clothing",
+      "keyword": "miko",
+      "limit": 5
+    },
+    {
+      "id": "miko_general",
+      "category": "general",
+      "keyword": "miko",
+      "limit": 5
+    },
+    {
+      "id": "miko_hakama",
+      "group": "clothing",
+      "keyword": "hakama",
+      "limit": 5
+    },
+    {
+      "id": "miko_sleeves",
+      "group": "clothing",
+      "keyword": "wide sleeves",
+      "limit": 5
+    },
+    {
+      "id": "miko_detached_sleeves",
+      "group": "clothing",
+      "keyword": "detached sleeves",
+      "limit": 5
+    },
+    {
+      "id": "miko_japanese_clothes",
+      "group": "clothing",
+      "keyword": "japanese clothes",
+      "limit": 5
+    }
   ]
 }
 ```
@@ -181,11 +227,11 @@ Anima 特殊控制词边界：
 
 `--for-prompt --json --compact` 输出：
 
-| 字段 | 用法 |
-|------|------|
-| `found` | 是否有可确认锚点；`false` 时不要冒充命中 |
-| `confirmed_tags` | 高置信锚点，可回填但仍需筛选 |
-| `candidate_tags` | 候选项，必须按用户意图筛选 |
+| 字段             | 用法                                     |
+| ---------------- | ---------------------------------------- |
+| `found`          | 是否有可确认锚点；`false` 时不要冒充命中 |
+| `confirmed_tags` | 高置信锚点，可回填但仍需筛选             |
+| `candidate_tags` | 候选项，必须按用户意图筛选               |
 
 单项和批量 compact 都保留 `confirmed_tags / candidate_tags` 分层。batch 额外有 `results`、`missing`、`usage`。
 
