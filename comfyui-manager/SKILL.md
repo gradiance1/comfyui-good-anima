@@ -7,29 +7,11 @@ description: Manage ComfyUI server, models, workflows, LoRAs, queues, dependenci
 
 ## 与本 skill 的关系定位
 
-本 skill 和 `comfyui-animatool` 是**互补关系**，不是替代关系：
-
-| 能力                              | comfyui-animatool         | comfyui-manager (本 skill)                                                                                                         |
-| --------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Anima 二次元生图                  | ✅ 负责 Anima prompt 策略 | ✅ 可通过已导入工作流执行，返回 `outputs[].local_path`；默认工作流使用 aesthetic LoRA 增强，包含 FLSampler + TeaCache + RTX VSR 2× |
-| 释放显存/卸载模型                 | ❌                        | ✅ `comfyui-skill free`                                                                                                            |
-| 管理工作流（导入/启用/禁用）      | ❌                        | ✅ `comfyui-skill workflow *`                                                                                                      |
-| 查模型列表（checkpoint/LoRA/VAE） | ❌ 只有基础列表           | ✅ 完整文件夹浏览                                                                                                                  |
-| 切换 LoRA / 更换模型              | ❌                        | ✅ 通过 run workflow 传不同参数                                                                                                    |
-| 查 ComfyUI 节点                   | ❌                        | ✅ `comfyui-skill nodes *`                                                                                                         |
-| 队列管理                          | ❌                        | ✅ `comfyui-skill queue *`                                                                                                         |
-| 依赖安装                          | ❌                        | ✅ `comfyui-skill deps *`                                                                                                          |
-| 工作流链式执行                    | ❌                        | ✅ `run → upload --from-output → run`                                                                                              |
-
 **使用原则**：
 
-- Anima 生图策略 → 先走 `comfyui-animatool` 组装 prompt/参数
-- Anima 的 tag、自然语言、权重语法由 `comfyui-animatool` 决定；本 skill 不自行改写 prompt
-- Anima 批量生图的意图、prompt、`steps`、画布和命名参数也必须先由 `comfyui-animatool` 产出；本 skill 只能执行已确定的 args，不得用临时脚本自行生成或覆盖这些策略参数
-- Codex 中实际执行默认 Anima 工作流 → 运行 `comfyui-skill run local/anima-txt2img-aesthetic-lora`，读取 `outputs[].local_path`
-- 默认工作流包含双美学 LoRA、AnimaBoosterLoader、FLSampler、TeaCache 与 RTX VSR 2×；FLSampler / AnimaBoosterLoader 参数只在用户明确要求调质感、锐度、焦点稳定性或节点级加速时传入
-- 管理/运维/查询/非 Anima 生图任务 → 走本 skill
-- LoRA/模型相关 → 先走本 skill 查可用列表，再决定执行方式
+- Anima prompt、tag、画布、steps、批量意图由 `comfyui-animatool` 决定。
+- 本 skill 只执行已确定 args，并管理服务器、模型、workflow、队列、依赖、日志和 history。
+- 管理/运维/查询/非 Anima workflow 执行任务直接走本 skill。
 
 ## CLI 工作区
 
@@ -37,24 +19,49 @@ description: Manage ComfyUI server, models, workflows, LoRAs, queues, dependenci
 
 路径解析规则：
 
-1. 如果本 skill 位于打包目录 `.../skills/comfyui-good-anima/comfyui-manager`，使用同目录下的 `workspace`。
-2. 如果本 skill 作为顶层 skill 安装在 `.../skills/comfyui-manager`，使用同目录下的 `workspace`。
-3. 兼容迁移时，可在当前用户目录下按 `comfyui-good-anima/comfyui-manager/workspace`、顶层 `comfyui-manager/workspace` 的顺序查找；优先选择同时存在 `config.json` 和 `data/` 的目录。
-4. 不要写死 `.snow`、`.codex` 或具体用户名路径；必须使用当前已安装 skill 的真实目录，或用 `$env:USERPROFILE` 组合候选路径。
+1. 优先使用当前已安装 skill 同目录下的 `workspace`。
+2. 已在 `workspace` 目录内执行时，直接使用当前目录。
+3. 自动化脚本可显式设置 `COMFYUI_MANAGER_WORKSPACE`。
+4. 从通用 Agent Skills 安装环境启动时，可从当前目录向上查找任意 `skills/` 容器，再定位 `comfyui-manager`。
+5. 不要写死用户名或任何 agent 平台安装目录。
 
 PowerShell 兜底解析示例：
 
 ```powershell
-$candidates = @(
-  (Join-Path $env:USERPROFILE ".snow\skills\comfyui-good-anima\comfyui-manager\workspace"),
-  (Join-Path $env:USERPROFILE ".codex\skills\comfyui-good-anima\comfyui-manager\workspace"),
-  (Join-Path $env:USERPROFILE ".snow\skills\comfyui-manager\workspace"),
-  (Join-Path $env:USERPROFILE ".codex\skills\comfyui-manager\workspace")
-)
-$WORKSPACE = $candidates | Where-Object {
-  (Test-Path (Join-Path $_ "config.json")) -and (Test-Path (Join-Path $_ "data"))
-} | Select-Object -First 1
-if (-not $WORKSPACE) { throw "No comfyui-manager workspace found" }
+function Test-ComfyManagerWorkspace($Path) {
+  return (Test-Path (Join-Path $Path "config.json")) -and (Test-Path (Join-Path $Path "data"))
+}
+
+function Find-ComfyManagerWorkspaceFromSkills($Start) {
+  $cursor = (Resolve-Path $Start).Path
+  while ($cursor) {
+    $skillsDirs = Get-ChildItem -LiteralPath $cursor -Directory -Recurse -Depth 2 -Filter "skills" -ErrorAction SilentlyContinue
+    foreach ($skillsDir in $skillsDirs) {
+      foreach ($candidate in @(
+        (Join-Path $skillsDir.FullName "comfyui-manager\workspace"),
+        (Join-Path $skillsDir.FullName "comfyui-good-anima\comfyui-manager\workspace")
+      )) {
+        if (Test-ComfyManagerWorkspace $candidate) { return (Resolve-Path $candidate).Path }
+      }
+    }
+    $parent = Split-Path $cursor -Parent
+    if ($parent -eq $cursor) { break }
+    $cursor = $parent
+  }
+  return $null
+}
+
+$WORKSPACE = if ($env:COMFYUI_MANAGER_WORKSPACE) {
+  $env:COMFYUI_MANAGER_WORKSPACE
+} elseif (Test-ComfyManagerWorkspace ".\workspace") {
+  (Resolve-Path ".\workspace").Path
+} elseif (Test-ComfyManagerWorkspace ".") {
+  (Get-Location).Path
+} elseif ($found = Find-ComfyManagerWorkspaceFromSkills ".") {
+  $found
+} else {
+  throw "Set COMFYUI_MANAGER_WORKSPACE or run from a directory that can discover skills/comfyui-manager"
+}
 ```
 
 默认 Anima 生图工作流：
@@ -75,13 +82,44 @@ local/anima-txt2img-base
 local/anima-txt2img-aesthetic-lora-artist-mixer
 ```
 
-该工作流使用 `AnimaArtistPack` / `AnimaArtistCrossAttn` 将画师串拆分并在 Anima cross-attention 层混合。使用时把画师写入 `artist_chain`，主提示词写入 `prompt_11`，不要在 `prompt_11` 里重复堆叠画师名。默认 `combine_mode=output_avg`、`fusion_mode=interpolate`、`artist_mixer_strength=0.7`、`artist_mixer_normalize_weights=true`、`artist_mixer_apply_to_uncond=false`。普通单画师或未明确要求画师串时不要使用该工作流。
+使用 Artist Mixer 时把画师写入 `artist_chain`，主提示词写入 `prompt_11`，不要在 `prompt_11` 里重复堆叠画师名。普通单画师或未明确要求画师串时不要使用该工作流。
 
-**始终添加 --dir "$WORKSPACE" 参数**：
+统一命令前缀：
 
 ```powershell
 comfyui-skill --dir "$WORKSPACE"
 ```
+
+## PowerShell 与运行产物
+
+写入 args / batch JSON 时必须按版本分支：
+
+- PowerShell 7.x / 7.6：使用 UTF-8 no BOM，`Set-Content -Encoding utf8`。
+- Windows PowerShell 5.1：使用 UTF-8 with BOM，`Set-Content -Encoding UTF8`。
+- 不确定版本时先探测 `pwsh` / `$PSVersionTable`；不要直接假定 PowerShell 5，也不要直接手写无 BOM。
+
+运行产物不要写入 skill 目录。临时 args、批量 args、输出图片、缓存和历史统一放到 `$RUNTIME`：
+
+```powershell
+$RUNTIME = if ($env:COMFYUI_MANAGER_RUNTIME_DIR) {
+  $env:COMFYUI_MANAGER_RUNTIME_DIR
+} elseif ($env:SKILL_RUNTIME_ROOT) {
+  Join-Path $env:SKILL_RUNTIME_ROOT "comfyui-manager"
+} else {
+  $config = Get-Content -LiteralPath (Join-Path $WORKSPACE "config.json") -Raw | ConvertFrom-Json
+  $outputDir = $config.servers[0].output_dir
+  if ($outputDir) {
+    Split-Path ([System.IO.Path]::GetFullPath((Join-Path $WORKSPACE $outputDir))) -Parent
+  } else {
+    Join-Path (Resolve-Path (Join-Path $WORKSPACE "..\..")).Path "runtime\comfyui-manager"
+  }
+}
+New-Item -ItemType Directory -Force -Path $RUNTIME | Out-Null
+```
+
+Runtime 解析优先级：`COMFYUI_MANAGER_RUNTIME_DIR` > `SKILL_RUNTIME_ROOT/comfyui-manager` > `workspace/config.json` 的 `output_dir` 父目录 > workspace 相对 fallback。
+
+`workspace/outputs` 和 `workspace/cache` 可指向 `$RUNTIME/outputs`、`$RUNTIME/cache`，用于 Claw / GUI 读取本地文件路径或 base64。不要在 workspace 内复制第二份图片。
 
 ## 常规生图最短路径
 
@@ -231,7 +269,7 @@ comfyui-skill --json --dir "$WORKSPACE" list
 comfyui-skill --json --dir "$WORKSPACE" info local/workflow_id
 
 # 从 JSON 文件导入工作流
-comfyui-skill --json --dir "$WORKSPACE" workflow import D:\path\to\workflow.json --check-deps
+comfyui-skill --json --dir "$WORKSPACE" workflow import "<path-to-workflow.json>" --check-deps
 
 # 启用/禁用工作流
 comfyui-skill --json --dir "$WORKSPACE" workflow enable local/workflow_id
@@ -277,9 +315,9 @@ args 文件格式按“工作流执行参数格式”执行：必须是纯参数
 
 Anima 输出命名规则：`filename_prefix` 必须使用 `anima/%year%-%month%-%day%/<model_tag>-<artist_tag>-<character_tag>`。`model_tag` 来自 UNet 模型名，去掉扩展名后转安全名，例如 `anima-base-v1.0.safetensors` -> `anima_base_v1_0`；默认工作流的 `artist_tag` 来自 prompt 中的单画师标签，去掉 `@`；Artist Mixer 工作流的 `artist_tag` 来自 `artist_chain`，按主次取 1–3 个画师名拼接。`character_tag` 来自主要角色标签。三者都转小写，并把空格或特殊符号替换成 `_`。ComfyUI 会自动按此前缀保存到 `output/anima/YYYY-MM-DD/`，并追加 `_00001_`、`_00002_` 这样的顺序号；不要手写序号。
 
-Anima 本地缓存规则：每次成功执行 Anima 生图后，除了返回 `outputs[].local_path` 指向的 ComfyUI 正式输出，还必须在 `WORKSPACE/cache/anima/YYYY-MM-DD/` 保留一份本地缓存，供远程 Claw/云端客户端复用，减少重复下载与重复调用。缓存日期必须优先来自输出的 `subfolder` 或 `source_local_path` 中的 `anima/YYYY-MM-DD`，其次才使用本地时区日期；不要用 `new Date().toISOString().slice(0, 10)` 生成缓存日期，UTC 会在中国时区凌晨把缓存写进前一天。缓存内容包括：输出图片副本、最终 args JSON、manifest JSON。manifest 至少记录 `workflow_id`、`prompt_id`（如有）、`source_local_path`、`cache_local_path`、`args_path`、`filename_prefix`、`created_at`。如果 `outputs[].local_path` 已经位于 workspace 缓存目录中，不要重复复制，只写 manifest；否则按原文件名复制到缓存目录。缓存失败不应伪装生图失败，但必须在结果中说明缓存失败原因。
+Anima 本地缓存规则：每次成功执行 Anima 生图后，除了返回 `outputs[].local_path` 指向的 ComfyUI 正式输出，还必须在 `$RUNTIME/cache/anima/YYYY-MM-DD/` 保留一份本地缓存，供远程 Claw/云端客户端复用，减少重复下载与重复调用。缓存日期必须优先来自输出的 `subfolder` 或 `source_local_path` 中的 `anima/YYYY-MM-DD`，其次才使用本地时区日期；不要用 `new Date().toISOString().slice(0, 10)` 生成缓存日期，UTC 会在中国时区凌晨把缓存写进前一天。缓存内容包括：输出图片副本或硬链接、最终 args JSON、manifest JSON。manifest 至少记录 `workflow_id`、`prompt_id`（如有）、`source_local_path`、`cache_local_path`、`args_path`、`filename_prefix`、`created_at`。如果 `outputs[].local_path` 已经位于缓存目录中，不要重复复制，只写 manifest；否则优先硬链接，失败后再按原文件名复制到缓存目录。缓存失败不应伪装生图失败，但必须在结果中说明缓存失败原因。
 
-临时提交脚本要求：凡是生成串行/并行提交脚本，都不能只调用 `comfyui-skill submit` 后结束。脚本必须记录每个 job 的 args 文件和 `prompt_id`，等待任务完成或在任务完成后用 `comfyui-skill --json status <prompt_id>` 读取 `outputs[].local_path`，再执行上述本地缓存规则。不要把 ComfyUI 队列返回的 `prompt_id` 传给 `history show`；`history show` 使用的是 workflow id + run_id。若脚本选择只入队不等待完成，必须同时生成一个后处理脚本或清单，说明如何根据 `prompt_id` 补建 `WORKSPACE/cache/anima/YYYY-MM-DD/` 缓存。远程 GUI / Claw / 云端客户端需要展示图片时，优先读取 workspace 缓存副本。
+临时提交脚本要求：凡是生成串行/并行提交脚本，都不能只调用 `comfyui-skill submit` 后结束。脚本必须记录每个 job 的 args 文件和 `prompt_id`，等待任务完成或在任务完成后用 `comfyui-skill --json status <prompt_id>` 读取 `outputs[].local_path`，再执行上述本地缓存规则。不要把 ComfyUI 队列返回的 `prompt_id` 传给 `history show`；`history show` 使用的是 workflow id + run_id。若脚本选择只入队不等待完成，必须同时生成一个后处理脚本或清单，说明如何根据 `prompt_id` 补建 `$RUNTIME/cache/anima/YYYY-MM-DD/` 缓存。远程 GUI / Claw / 云端客户端需要展示图片时，优先读取 runtime 缓存；若 `workspace/cache` 是 junction，也可以通过 workspace 路径读取。
 
 ### Anima 批量生图规则
 
@@ -381,7 +419,7 @@ cd WORKSPACE && node .\run_workflow_args.js run local/workflow_id .\args.json --
 
 ```powershell
 # 上传本地文件
-comfyui-skill --json --dir "$WORKSPACE" upload D:\path\to\image.png
+comfyui-skill --json --dir "$WORKSPACE" upload "<path-to-image.png>"
 
 # 链式上传：把上次工作流的输出当输入
 comfyui-skill --json --dir "$WORKSPACE" upload --from-output <prompt_id>
@@ -450,10 +488,10 @@ comfyui-skill --json --dir "$WORKSPACE" templates subgraphs
 
 ```powershell
 # 导出配置和工作流为可迁移包
-comfyui-skill --dir "$WORKSPACE" config export --output D:\backup.zip --json
+comfyui-skill --dir "$WORKSPACE" config export --output "<backup.zip>" --json
 
 # 导入配置包
-comfyui-skill --dir "$WORKSPACE" config import D:\backup.zip --json
+comfyui-skill --dir "$WORKSPACE" config import "<backup.zip>" --json
 ```
 
 ## JSON 输出处理
@@ -511,7 +549,7 @@ node .\run_workflow_args.js run local/txt2img .\args.json
 
 **Windows PowerShell 注意事项**：
 
-- 推荐把参数写入 JSON 文件，再用 `node .\run_workflow_args.js run|submit <workflow_id> <args_json_file>` 执行。该脚本用 `spawn` 的 argv 数组传参，并会先把 JSON minify，避免 PowerShell/Codex agent 把换行、空格、引号拆成额外 CLI 参数。
+- 推荐把参数写入 JSON 文件，再用 `node .\run_workflow_args.js run|submit <workflow_id> <args_json_file>` 执行。该脚本用 `spawn` 的 argv 数组传参，并会先把 JSON minify，避免 shell 把换行、空格、引号拆成额外 CLI 参数。
 - 不推荐在 PowerShell 里使用 `--args="$(Get-Content ...)"`、`--args=$argsJson` 或内联复杂 JSON；转义容易破坏 prompt 中的引号、反斜杠、换行和空格，常见错误是 `Got unexpected extra arguments`。
 - `comfyui-skill` 当前没有 `--args-file`，所以不要让 agent 尝试该参数；用本 workspace 的 `run_workflow_args.js` 代替。
 - 如果需要 `--priority` 等额外参数，放在 JSON 文件路径之后，例如：`node .\run_workflow_args.js run local/anima-txt2img-aesthetic-lora .\args_anima.json --priority -1`。不要为了额外参数回退到 PowerShell 内联 `--args`。
@@ -533,7 +571,7 @@ node .\run_workflow_args.js run local/txt2img .\args.json
 
 **场景：导入并使用新的 FLUX 工作流**
 
-1. 导入 → `comfyui-skill --json --dir "$WORKSPACE" workflow import D:\workflows\flux.json --check-deps`
+1. 导入 → `comfyui-skill --json --dir "$WORKSPACE" workflow import "<path-to-flux.json>" --check-deps`
 2. 查看参数 → `comfyui-skill --json --dir "$WORKSPACE" info local/flux`
 3. 运行 → `node .\run_workflow_args.js run local/flux .\args_flux.json`
 

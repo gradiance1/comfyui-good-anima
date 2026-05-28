@@ -9,9 +9,8 @@ description: Generate randomized but Anima-compliant image parameters after comf
 
 ## 权威边界
 
-- Prompt 规则以 Anima 官方 HuggingFace 模型卡为准。
 - 画师池与 tag 锚点必须经过 `danbooru-tags` Rust CLI / Anima CSV 索引。
-- 默认执行链路是 `comfyui-manager` 的 `local/anima-txt2img-aesthetic-lora`。
+- 本 skill 只产出随机参数；执行交给 `comfyui-manager`。
 
 ## 随机检索入口
 
@@ -24,11 +23,7 @@ description: Generate randomized but Anima-compliant image parameters after comf
 
 只用 `confirmed_tags`，`candidate_tags` 必须按随机视觉简报筛选。缺失项交给 `nltags`，不要继续无限补查。
 
-随机候选池可用 `--random N --group <group> --json` 抽取。CLI 提供候选，不替模型决定筛选结果；模型按任务自选 `N`，普通建议 10–50，硬上限 1–300。只有用户明确要大量抽卡候选时才使用 100–300。随机 tag 候选不加 `--for-prompt`。
-
-候选池只供内部筛选；最终输出少量被选项，不复述完整候选 JSON。
-
-随机画师与随机 hard anchors 必须通过 `danbooru-tags.exe` 获取。
+随机候选数量和 `--for-prompt` 语义遵循 `danbooru-tags`；候选池只供内部筛选，最终输出少量被选项。
 
 ## 随机前视觉简报
 
@@ -40,7 +35,7 @@ description: Generate randomized but Anima-compliant image parameters after comf
 
 随机图也不要固定套默认竖图。先形成语义草案，再按 `anima-composition-director` 的 canvas fit 选择 `width/height`，最后把主体位置、景别、背景展开方向写回 `nltags`。
 
-如果随机草案和画布不匹配，优先调整构图；不要先按竖图写完再改成横图尺寸。`1536x1536` 只用于高信息量中心构图；简单头像、表情图、普通半身图使用 `1024x1024`。
+如果随机草案和画布不匹配，优先调整构图。`1536x1536` 只用于高信息量中心构图；简单头像、表情图、普通半身图使用 `1024x1024`。
 
 ## 输出字段
 
@@ -58,7 +53,7 @@ description: Generate randomized but Anima-compliant image parameters after comf
 | `environment` | 已确认的场景/光影短 tag |
 | `nltags` | 英文自然语言补充，可为短段落或多句 |
 | `neg` | 负面提示词 |
-| `width` / `height` | 根据 `canvas_fit` 选择；常用档位：1536×1024、1024×1536、1536×864、1536×1152、1152×1536、1536×768、1024×1024、1536×1536；默认不主动推荐任一边超过 1536 |
+| `width` / `height` | 根据 `anima-composition-director` 的 `canvas_fit` 选择；默认不主动推荐任一边超过 1536 |
 | `steps` | 默认 30 |
 | `cfg` | 默认 4.5 |
 | `sampler_name` | 默认 `dpmpp_2m_sde_gpu` |
@@ -75,7 +70,7 @@ description: Generate randomized but Anima-compliant image parameters after comf
 7. 姿势、表情、服装要互相兼容；不要生成 `lying` + `sitting`、`open mouth` + `closed mouth` 这类冲突组合。
 8. 单人、头像、半身或角色表现图必须考虑脸部可读性，在 `nltags` 中保留简短控制句。
 9. 背景不是主体时，优先使用轻微背景虚化或 `depth of field` 分离主体；复杂背景图只控制景深落点。
-10. 默认使用当前本地参数：30 steps、CFG 4.5、`dpmpp_2m_sde_gpu`、`beta57`、TeaCache、RTX VSR 2x 放大。
+10. 默认采样参数：30 steps、CFG 4.5、`dpmpp_2m_sde_gpu`、`beta57`。
 
 ## 权重规则
 

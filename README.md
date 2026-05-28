@@ -231,8 +231,10 @@ comfyui-skill workflow import ../data/anima-txt2img-aesthetic-lora.json --check-
 
 ```powershell
 cd comfyui-good-anima/comfyui-manager/workspace
-node run_workflow_args.js run local/anima-txt2img-aesthetic-lora .\args_anima.json
+node ./run_workflow_args.js run local/anima-txt2img-aesthetic-lora ./args_anima.json
 ```
+
+`run_workflow_args.js` 会通过 argv 安全传递 JSON args，避免 PowerShell 内联 `--args` 破坏引号、反斜杠或换行。运行历史、输出缓存和临时产物默认写入可解析的 runtime 目录；如需指定位置，可设置 `COMFYUI_MANAGER_RUNTIME_DIR` 或 `SKILL_RUNTIME_ROOT`。
 
 ---
 
@@ -333,6 +335,13 @@ comfyui-good-anima/
 │       ├── cache_anima_outputs.js
 │       └── run_workflow_args.js
 │
+├── runtime/                                # 可选运行产物目录（本地生成，不建议提交）
+│   ├── comfyui-manager/
+│   │   ├── outputs/
+│   │   ├── cache/
+│   │   └── history/
+│   └── danbooru-tags/
+│
 └── danbooru-tags/                          # 🏷️ 标签检索器
     ├── SKILL.md
     ├── bin/danbooru-tags.exe               # Rust CLI（预编译，无需编译）
@@ -398,3 +407,18 @@ GNU General Public License v3.0
 感谢 [**ClownsharkBatwing**](https://github.com/ClownsharkBatwing) 的 [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF) 节点包提供的 `beta57` 调度器，为本项目的默认采样配置提供了稳定且高质量的选择。
 
 衷心感谢以上所有开源作者和社区贡献者为 AI 创作生态做出的贡献。 ❤️
+
+---
+
+## 更新记录
+
+### v0.2.1 - 未发布兼容性与 Skill 去噪修复
+
+- 移除 `cache_anima_outputs.js` 中的本机 ComfyUI 输出目录硬编码，改为 `COMFYUI_OUTPUT_DIR`、`workspace/config.json` 与 runtime 自动解析。
+- `run_workflow_args.js` 执行后会将 workflow history 迁移到 runtime，避免运行产物继续堆在 skill/workspace 内。
+- Anima 缓存改为写入 runtime cache，并优先使用硬链接，失败时再复制，供 Claw / GUI 读取本地路径或 base64。
+- `danbooru-tags` 与 `comfyui-manager` 路径解析改为通用 Agent Skills 发现逻辑：环境变量优先，其次当前目录/相对目录，最后从当前目录向上查找任意 `skills/` 容器，并校验目标 skill 文件结构。
+- 移除旧版 `SKILL.md` 中的平台名噪音和固定平台目录示例，不再枚举具体 agent 安装目录。
+- 精简 5 个 `SKILL.md` 中的重复解释、情绪化措辞、跨 skill 重复和无效示例；保留 Anima 构图、画师、随机、缓存和执行链路的核心约束。
+- `anima-composition-director` 保留高价值软规则：电影术语转静态构图、明暗分离、边缘控制和色彩分组。
+- README 快速开始改用更通用的 `./script` 写法，并记录 runtime 环境变量兜底方式。

@@ -9,7 +9,6 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 
 ## 权威边界
 
-- Anima prompt 规则以官方 HuggingFace 模型卡为准。
 - 检索数据默认只来自 Anima CSV / 本地索引；不要把外部泛画师表混入默认生图回填。
 - 是否生图、如何组 prompt、如何交接执行都属于 `comfyui-animatool`；本 skill 只返回检索结果。
 - 角色查询只返回角色 tag、aliases 和 count，不返回外观设定；不要把 aliases 当发色、服装或道具描述。
@@ -20,34 +19,55 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 
 `DANBOORU_TAGS_DIR` 是包含 `bin/danbooru-tags.exe`、`anima-1.0.csv`、`tags_index.sqlite` 的目录。路径解析规则：
 
-1. 如果本 skill 位于打包目录 `.../skills/comfyui-good-anima/danbooru-tags`，使用该目录。
-2. 如果本 skill 作为顶层 skill 安装在 `.../skills/danbooru-tags`，使用该目录。
-3. 兼容迁移时，可在当前用户目录下按 `comfyui-good-anima/danbooru-tags`、顶层 `danbooru-tags` 的顺序查找；优先选择同时存在 `bin/danbooru-tags.exe` 和 `tags_index.sqlite` 的目录。
-4. 不要写死 `.snow`、`.codex` 或具体用户名路径；必须使用当前已安装 skill 的真实目录，或用 `$env:USERPROFILE` 组合候选路径。
+1. 已读取本 `SKILL.md` 时，优先使用该文件所在目录。
+2. 已在 skill 目录中执行命令时，优先使用当前目录。
+3. 自动化脚本可显式设置环境变量 `DANBOORU_TAGS_DIR`。
+4. 从通用 Agent Skills 安装环境启动时，可从当前目录向上查找任意 `skills/` 容器，再定位 `danbooru-tags`。
+5. 不要写死用户名或任何 agent 平台安装目录。
 
 PowerShell 兜底解析示例：
 
 ```powershell
-$candidates = @(
-  (Join-Path $env:USERPROFILE ".snow/skills/comfyui-good-anima/danbooru-tags"),
-  (Join-Path $env:USERPROFILE ".codex/skills/comfyui-good-anima/danbooru-tags"),
-  (Join-Path $env:USERPROFILE ".snow/skills/danbooru-tags"),
-  (Join-Path $env:USERPROFILE ".codex/skills/danbooru-tags")
-)
-$DANBOORU_TAGS_DIR = $candidates | Where-Object {
-  (Test-Path (Join-Path $_ "bin/danbooru-tags.exe")) -and (Test-Path (Join-Path $_ "tags_index.sqlite"))
-} | Select-Object -First 1
-if (-not $DANBOORU_TAGS_DIR) { throw "No danbooru-tags skill directory found" }
+function Test-DanbooruTagsDir($Path) {
+  return (Test-Path (Join-Path $Path "bin/danbooru-tags.exe")) -and (Test-Path (Join-Path $Path "tags_index.sqlite"))
+}
+
+function Find-DanbooruTagsDirFromSkills($Start) {
+  $cursor = (Resolve-Path $Start).Path
+  while ($cursor) {
+    $skillsDirs = Get-ChildItem -LiteralPath $cursor -Directory -Recurse -Depth 2 -Filter "skills" -ErrorAction SilentlyContinue
+    foreach ($skillsDir in $skillsDirs) {
+      foreach ($candidate in @(
+        (Join-Path $skillsDir.FullName "danbooru-tags"),
+        (Join-Path $skillsDir.FullName "comfyui-good-anima\danbooru-tags")
+      )) {
+        if (Test-DanbooruTagsDir $candidate) { return (Resolve-Path $candidate).Path }
+      }
+    }
+    $parent = Split-Path $cursor -Parent
+    if ($parent -eq $cursor) { break }
+    $cursor = $parent
+  }
+  return $null
+}
+
+$DANBOORU_TAGS_DIR = if ($env:DANBOORU_TAGS_DIR) {
+  $env:DANBOORU_TAGS_DIR
+} elseif (Test-DanbooruTagsDir ".") {
+  (Get-Location).Path
+} elseif (Test-DanbooruTagsDir "./danbooru-tags") {
+  (Resolve-Path "./danbooru-tags").Path
+} elseif (Test-DanbooruTagsDir "./comfyui-good-anima/danbooru-tags") {
+  (Resolve-Path "./comfyui-good-anima/danbooru-tags").Path
+} elseif ($found = Find-DanbooruTagsDirFromSkills ".") {
+  $found
+} else {
+  throw "Set DANBOORU_TAGS_DIR or run from a directory that can discover skills/danbooru-tags"
+}
 cd "$DANBOORU_TAGS_DIR"
 ```
 
-示例：
-
-```powershell
-.\bin\danbooru-tags.exe --group artist --prefix "@dair" --limit 5 --for-prompt --json --compact
-```
-
-生图前多锚点检索优先用批量入口。PowerShell/Codex/Snow 下复杂 batch JSON 必须写入文件，避免内联 JSON 被 shell 拆坏：
+生图前多锚点检索优先用批量入口。Shell 下复杂 batch JSON 必须写入文件，避免内联 JSON 被拆坏：
 
 ```powershell
 @'
@@ -62,23 +82,7 @@ cd "$DANBOORU_TAGS_DIR"
 .\bin\danbooru-tags.exe --batch-workers 8 --batch-file .\batch_tags.json --for-prompt --json --compact
 ```
 
-> **Shell 版本自适应**：`Set-Content -Encoding utf8` 在 pwsh 7.x 下默认无 BOM；在 PowerShell 5.1 下会写入 UTF-8 BOM（`0xEF 0xBB 0xBF`），导致 Rust CLI 的 JSON 解析器报 `expected value at line 1 column 1`。**每次写 batch JSON 前必须先检测当前 Shell 版本**，按实际环境选择路径：
->
-> ```powershell
-> # 拼接 JSON 后，按 Shell 版本选择写入方式
-> if ($PSVersionTable.PSVersion.Major -ge 7) {
->   # pwsh 7.x：Set-Content 默认无 BOM
->   $batchJson | Set-Content -LiteralPath .\batch_tags.json -Encoding utf8
-> } else {
->   # PowerShell 5.x：必须使用无 BOM UTF-8
->   $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
->   [System.IO.File]::WriteAllText("$pwd\batch_tags.json", $batchJson, $utf8NoBom)
-> }
-> ```
-
-```
-
-```
+PowerShell 7.x 使用 `Set-Content -Encoding utf8`；只能确认 Windows PowerShell 5.x 时，使用 `[System.IO.File]::WriteAllText(..., [System.Text.UTF8Encoding]::new($false))` 写入无 BOM UTF-8。
 
 批量输出按 `results.<id>.confirmed_tags` / `results.<id>.candidate_tags` 读取，`missing` 表示查不到，直接交给 `nltags`。不要把完整 JSON 复述给用户。
 
@@ -129,18 +133,18 @@ cd "$DANBOORU_TAGS_DIR"
 - `--for-prompt` 是生图回填模式，会故意只返回 1 个画师，避免把长画师串塞进 prompt。
 - 从候选中选画师时，最多选 1 个；用户明确要求混合风格时最多 2 个。
 - 随机 tag 候选不使用 `--for-prompt`；先抽候选，再由模型按兼容性筛选。
-- CLI 只负责提供随机候选，不负责替模型判断抽多少；不要把用户所有模糊需求都塞进随机 tag 检索器。
+- CLI 只负责提供随机候选；不明确适合随机检索的需求，应由 `comfyui-animatool` 先澄清或转为自然语言控制。
 
 候选预算与 `count`：
 
 - 随机候选池只供模型内部筛选；最终只使用筛出的少量结果，通常展示 1–5 个关键选择，不复述完整 JSON。
 - `count` 是训练覆盖与稳定性参考，不是默认硬门槛；不要默认加 `--min-count`。
 - 只有用户明确要求高覆盖、高稳定或指定图量门槛时，才使用 `--min-count`。
-- 不要为了给随机画师补 `count` 反复二次查询；能从当前结果判断就直接筛选。
+- 随机画师筛选优先使用当前结果中的 `count`；只有用户明确要求覆盖门槛时才补查。
 
 ## 硬性规则
 
-1. 默认主索引只使用 `anima-1.0.csv`；其他历史 CSV 只允许维护或兼容排查时使用，不参与默认生图回填。
+1. 默认主索引只使用 `anima-1.0.csv`；其他历史 CSV 不参与默认生图回填。
 2. 画师标签只来自 CSV 原始画师分类，必须保留 `@`。
 3. 其他分类不带 `@`，不能当画师标签。
 4. `artists_extended.txt` 只在显式 `--extended` 时使用，不用于默认生图回填。
@@ -167,15 +171,9 @@ cd "$DANBOORU_TAGS_DIR"
 | `lighting` / `light` / `atmosphere`    | 光影、阴影、逆光、窗影、景深、氛围   |
 | `meta`                                 | highres、official art 等元信息       |
 
-Anima 特殊控制词边界：
-
-- `newest / recent / mid / early / old` 和 `year xxxx` 是 Anima 官方 time period 控制词；不需要、也不应该用本地 CSV 检索命中结果来证明它们可用。CSV 中同名普通 tag 只代表检索条目，不代表 period/year 控制语义。
-- 旧画风可检索的 Danbooru 风格锚点包括 `retro_artstyle`、`faux_retro_artstyle`、`heisei_retro`、`traditional_media` 等；这些可作为普通 `general` tag 校验。
-- dataset 风格词如 `deviantart` 若存在，可能位于作品/IP 类桶；是否使用由 `comfyui-animatool` 的风格意图决定，CLI 只报告候选，不主动判定应该加入 prompt。
-
 ## 批量并发与多变体
 
-- `--batch-workers N` 控制批量查询并发，默认 4，建议 4–8；过高只会增加 SQLite 连接竞争。
+- `--batch-workers N` 控制批量查询并发，默认 4，建议 4–8。
 - 提升准确度时，不要多次调用 CLI；在同一个 `queries` 里放同一锚点的多个变体，例如 `character` / `character_alt`、`artist_pija` / `artist_okara`。
 - 模型从批量返回中筛选最匹配的 confirmed/candidate；`missing` 直接交给自然语言，不继续无限补查。
 - 精细 group 只是优先过滤，不是绝对真理；部分 Danbooru 服装、构图、属性词实际属于 `general`。
@@ -243,7 +241,7 @@ Anima 特殊控制词边界：
 
 单项和批量 compact 都保留 `confirmed_tags / candidate_tags` 分层。batch 额外有 `results`、`missing`、`usage`。
 
-人工查看可不用 `--compact`；生图回填默认使用 `--compact`，减少上下文占用。
+生图回填默认使用 `--compact`，减少上下文占用。
 
 ## 回填策略
 
@@ -268,7 +266,7 @@ Anima 特殊控制词边界：
 .\bin\danbooru-tags.exe --random 5 --for-prompt --json --compact
 ```
 
-单项查询用于人工查 tag 或补查；生图默认优先批量查询。
+生图默认优先批量查询；单项查询只用于关键补查。
 
 ## SQLite / Rust
 

@@ -3,8 +3,48 @@ const fs = require('fs');
 const path = require('path');
 
 const workspace = __dirname;
+const runtimeRoot = resolveRuntimeRoot();
 const workflowId = 'local/anima-txt2img-aesthetic-lora';
-const historyDir = path.join(workspace, 'data', 'local', 'anima-txt2img-aesthetic-lora', 'history');
+const historyDir = path.join(runtimeRoot, 'history', 'anima-txt2img-aesthetic-lora');
+
+function resolveRuntimeRoot() {
+  if (process.env.COMFYUI_MANAGER_RUNTIME_DIR) {
+    return path.resolve(process.env.COMFYUI_MANAGER_RUNTIME_DIR);
+  }
+  const runtimeRoot = process.env.SKILL_RUNTIME_ROOT;
+  if (runtimeRoot) {
+    return path.resolve(runtimeRoot, 'comfyui-manager');
+  }
+  const configRuntime = resolveRuntimeFromConfig();
+  if (configRuntime) {
+    return configRuntime;
+  }
+  const existingRuntime = findExistingRuntimeRoot(workspace, 'comfyui-manager');
+  if (existingRuntime) {
+    return existingRuntime;
+  }
+  return path.resolve(workspace, '..', '..', 'runtime', 'comfyui-manager');
+}
+
+function resolveRuntimeFromConfig() {
+  const config = readJson(path.join(workspace, 'config.json'));
+  const server = Array.isArray(config && config.servers) ? config.servers.find((item) => item && item.output_dir) : null;
+  if (!server) return '';
+  const outputDir = path.resolve(workspace, server.output_dir);
+  return path.basename(outputDir).toLowerCase() === 'outputs' ? path.dirname(outputDir) : '';
+}
+
+function findExistingRuntimeRoot(start, runtimeName) {
+  let cursor = path.resolve(start);
+  while (cursor) {
+    const root = path.join(cursor, 'runtime');
+    if (fs.existsSync(root)) return path.join(root, runtimeName);
+    const parent = path.dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  return '';
+}
 
 function argValue(name, fallback = '') {
   const index = process.argv.indexOf(name);
@@ -14,6 +54,18 @@ function argValue(name, fallback = '') {
 
 function normalizeDate(value) {
   return String(value || '').replace(/[^\d-]/g, '').slice(0, 10);
+}
+
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function dateFromAnimaPath(value) {
+  const match = /(?:^|[\\/])anima[\\/](\d{4}-\d{2}-\d{2})(?:[\\/]|$)/i.exec(String(value || ''));
+  return match ? match[1] : '';
 }
 
 function mkdirp(dir) {
@@ -32,14 +84,34 @@ function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2), 'utf8');
 }
 
+function cacheImage(source, imageCachePath) {
+  if (path.resolve(source).toLowerCase() === path.resolve(imageCachePath).toLowerCase()) {
+    return 'same-path';
+  }
+  if (fs.existsSync(imageCachePath)) {
+    return 'exists';
+  }
+  try {
+    fs.linkSync(source, imageCachePath);
+    return 'hardlink';
+  } catch {
+    fs.copyFileSync(source, imageCachePath);
+    return 'copy';
+  }
+}
+
 function findOutputRoot() {
   const fromArg = argValue('--output-root');
   if (fromArg) return path.resolve(fromArg);
   if (process.env.COMFYUI_OUTPUT_DIR) return path.resolve(process.env.COMFYUI_OUTPUT_DIR);
 
+  const config = readJson(path.join(workspace, 'config.json'));
+  const configuredOutputs = Array.isArray(config && config.servers)
+    ? config.servers.map((server) => server && server.output_dir).filter(Boolean)
+    : [];
   const candidates = [
-    path.resolve(workspace, '..', '..', '..', '..', 'ComfyUI', 'output'),
-    'H:/stableDiffusion/ComfyUI-aki-v1.6/ComfyUI/output',
+    ...configuredOutputs.map((outputDir) => path.resolve(workspace, outputDir)),
+    path.join(runtimeRoot, 'outputs'),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
@@ -52,28 +124,63 @@ function outputPath(outputRoot, preview) {
   return path.join(outputRoot, subfolder, preview.filename);
 }
 
+function normalizeStatus(status) {
+  return ['success', 'completed'].includes(String(status || '').toLowerCase()) ? 'completed' : String(status || '');
+}
+
+function previewFromLocalOutput(output) {
+  if (!output || !output.filename) return null;
+  return {
+    filename: output.filename,
+    subfolder: output.subfolder || '',
+    type: output.type || 'output',
+    media_type: output.media_type || 'image',
+    local_path: output.local_path || '',
+  };
+}
+
+function jobsFromLocalHistory() {
+  if (!fs.existsSync(historyDir)) return [];
+  return fs.readdirSync(historyDir)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => {
+      const localHistoryPath = path.join(historyDir, name);
+      const localHistory = readJson(localHistoryPath);
+      const output = localHistory && Array.isArray(localHistory.outputs)
+        ? localHistory.outputs.find((item) => item && item.media_type === 'image' && item.filename)
+        : null;
+      return {
+        id: (localHistory && (localHistory.prompt_id || localHistory.run_id)) || path.basename(name, '.json'),
+        status: normalizeStatus(localHistory && localHistory.status),
+        preview_output: previewFromLocalOutput(output),
+        local_history_path: localHistoryPath,
+      };
+    });
+}
+
 function cacheOne(job, outputRoot) {
   const preview = job.preview_output;
   if (!preview || !preview.filename) {
     return { id: job.id, cached: false, reason: 'missing preview_output' };
   }
 
-  const source = outputPath(outputRoot, preview);
+  const source = preview.local_path && fs.existsSync(preview.local_path)
+    ? path.resolve(preview.local_path)
+    : outputPath(outputRoot, preview);
   if (!fs.existsSync(source)) {
     return { id: job.id, cached: false, reason: `source not found: ${source}` };
   }
 
-  const dateFromSubfolder = /(\d{4}-\d{2}-\d{2})/.exec(String(preview.subfolder || ''));
-  const date = normalizeDate(argValue('--date')) || (dateFromSubfolder ? dateFromSubfolder[1] : new Date().toISOString().slice(0, 10));
-  const cacheDir = path.join(workspace, 'cache', 'anima', date);
+  const dateFromSubfolder = dateFromAnimaPath(preview.subfolder);
+  const dateFromSource = dateFromAnimaPath(source);
+  const date = normalizeDate(argValue('--date')) || dateFromSubfolder || dateFromSource || localDateString();
+  const cacheDir = path.join(runtimeRoot, 'cache', 'anima', date);
   mkdirp(cacheDir);
 
   const imageCachePath = path.join(cacheDir, preview.filename);
-  if (path.resolve(source).toLowerCase() !== path.resolve(imageCachePath).toLowerCase()) {
-    fs.copyFileSync(source, imageCachePath);
-  }
+  const cache_mode = cacheImage(source, imageCachePath);
 
-  const localHistoryPath = path.join(historyDir, `${job.id}.json`);
+  const localHistoryPath = job.local_history_path || path.join(historyDir, `${job.id}.json`);
   const localHistory = readJson(localHistoryPath);
   const args = localHistory && localHistory.args ? localHistory.args : {};
   const stem = path.basename(preview.filename, path.extname(preview.filename));
@@ -87,6 +194,7 @@ function cacheOne(job, outputRoot) {
     status: job.status,
     source_local_path: source,
     cache_local_path: imageCachePath,
+    cache_mode,
     args_path: argsPath,
     filename_prefix: args.filename_prefix || '',
     created_at: new Date().toISOString(),
@@ -100,13 +208,24 @@ function cacheOne(job, outputRoot) {
 function main() {
   const limit = Number.parseInt(argValue('--limit', '50'), 10) || 50;
   const outputRoot = findOutputRoot();
-  const raw = execFileSync('comfyui-skill', ['history', 'list', workflowId, '--server', '--limit', String(limit)], {
-    cwd: workspace,
-    encoding: 'utf8',
-    env: process.env,
-  });
-  const data = JSON.parse(raw);
-  const jobs = Array.isArray(data.jobs) ? data.jobs.filter((job) => job.status === 'completed') : [];
+  let jobs = jobsFromLocalHistory()
+    .filter((job) => job.status === 'completed')
+    .sort((a, b) => {
+      const aTime = fs.statSync(a.local_history_path).mtimeMs;
+      const bTime = fs.statSync(b.local_history_path).mtimeMs;
+      return bTime - aTime;
+    })
+    .slice(0, limit);
+
+  if (jobs.length === 0) {
+    const raw = execFileSync('comfyui-skill', ['history', 'list', workflowId, '--server', '--limit', String(limit)], {
+      cwd: workspace,
+      encoding: 'utf8',
+      env: process.env,
+    });
+    const data = JSON.parse(raw);
+    jobs = Array.isArray(data.jobs) ? data.jobs.filter((job) => job.status === 'completed') : [];
+  }
   const results = jobs.map((job) => cacheOne(job, outputRoot));
   console.log(JSON.stringify({
     output_root: outputRoot,

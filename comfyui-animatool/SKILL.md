@@ -28,7 +28,7 @@ description: Use for Anima / ComfyUI-AnimaTool image generation. Route Anima gen
 
 ## 生图前视觉简报
 
-在组装参数前，必须先用 `anima-composition-director` 的方法形成简短视觉简报；不要把简报原样输出给用户，也不要写进 `prompt_hint`。目标是先想清楚画面，再写 prompt，避免弱模型只做词语翻译。
+在组装参数前，必须先用 `anima-composition-director` 的方法形成简短视觉简报；不要把简报原样输出给用户，也不要写进 `prompt_hint`。
 
 当需求涉及参考图构图、复杂场景、多人互动、特殊镜头、高分辨率、强光影，或模型明显缺少画面决策时，显式使用 `anima-composition-director`。本 skill 只接收它的输出：`canvas`、`camera`、`composition`、`lighting`、`focus`、`nltags_sentences`，再与 Danbooru hard anchors 组装 prompt。
 
@@ -51,38 +51,30 @@ description: Use for Anima / ComfyUI-AnimaTool image generation. Route Anima gen
 
 ## 必须先做的 tag 校验
 
-生图前先写一个最多 4 项的检索计划，然后按 `danbooru-tags` skill 的批量入口一次取回结果。Codex/PowerShell 下必须使用 `--batch-file`，不要内联多行 `--batch-json`。
+生图前先写一个最多 4 项的检索计划，然后按 `danbooru-tags` skill 的批量入口一次取回结果。Shell 下必须使用 `--batch-file`，不要内联多行 `--batch-json`。
 
 ### 画师称呼解析
 
-用户给出的画师名可能是中文圈称呼、昵称、社交平台名、画集名或社团名，不一定是 Danbooru/Anima 的 artist tag。不要维护本地固定别名表，也不要把中文昵称按字面直接丢给 tag 检索器。
+用户给出的画师名可能不是 Danbooru/Anima 的 artist tag。不要维护本地固定别名表，也不要把中文昵称按字面直接丢给 tag 检索器。
 
 流程：
 
 1. 如果画师输入不是明确的 Danbooru artist tag（例如没有 `@`，或包含“太太/老师/画师/社团”等自然语言称呼），先进行网络搜索确认 canonical artist name、常见别名和公开资料来源。
-2. 优先采用官方主页、Pixiv/X/微博资料、百科条目、画集/作品页等互相印证的信息；不要只凭单个图片聚合站结果下结论。
+2. 优先采用官方主页、社交主页、百科或作品页等互相印证的信息；不要只凭单个图片聚合站结果下结论。
 3. 将网络确认出的英文/罗马字画师名转为候选 `@artist`，再用 `danbooru-tags --group artist` 校验。
 4. 只有 `danbooru-tags` 返回 confirmed artist 后，才写入 prompt；查不到时向用户说明无法确认 tag，或改用最接近的 confirmed artist 候选。
 5. 网络搜索只用于解析称呼和别名，不替代 Anima CSV / Danbooru tag 校验。
 
 硬性限制：
 
-1. 不要从 `comfyui-animatool` 目录调用 `bin\danbooru-tags.exe`；PowerShell 会找错路径。
-2. 普通生图最多 1 次批量查询 + 1 次补查；超过后把缺失内容写进 `nltags`。
-3. 必查：角色、作品、最终选定画师。
-4. 可查：最多 1 个用户明确指定且高度可标签化的外观/服装锚点。
-5. 不查：构图、环境光影、恶堕/氛围、情绪、连续动作、复杂服饰组合；这些写进 `nltags`。
-6. 不要把角色名当 appearance 查，例如不要查 `appearance --keyword "alice"`；命名角色外观不确定时，不要用 appearance/clothing 盲查反推设定，先依据用户参考图、官方资料或轻量网络搜索确认关键外观，再只检索少量可标签化锚点，不确定细节写入 `nltags`。
-7. 只把 `confirmed_tags` 中与用户意图一致的项放入参数；`candidate_tags` 必须筛选。
-8. 如需提高命中率，把同一锚点的多个候选变体放进同一个 batch 文件，例如 `artist_pija` / `artist_okara`；不要多次调用 CLI。
+1. 普通生图最多 1 次批量查询 + 1 次补查；超过后把缺失内容写进 `nltags`。
+2. 必查：角色、作品、最终选定画师。
+3. 可查：最多 1 个用户明确指定且高度可标签化的外观/服装锚点。
+4. 不查：构图、环境光影、恶堕/氛围、情绪、连续动作、复杂服饰组合；这些写进 `nltags`。
+5. 不要把角色名当 appearance 查，例如不要查 `appearance --keyword "alice"`；命名角色外观不确定时，不要用 appearance/clothing 盲查反推设定，先依据用户参考图、官方资料或轻量网络搜索确认关键外观，再只检索少量可标签化锚点，不确定细节写入 `nltags`。
+6. 只把 `confirmed_tags` 中与用户意图一致的项放入参数；`candidate_tags` 必须筛选。
 
-检索计划要一次性覆盖“主词 + 英文/罗马音别名 + 部件拆解”。中文或日文俗称不要直接当唯一 keyword；先转成 Danbooru 常用英文/罗马音。精细 group 是优先约束，不是唯一真理；对常见视觉概念，可在同一个 batch 中同时放 `group=...` 和 `category=general` 变体。
-
-普通生图最多 4 个语义锚点；每个锚点最多 2–3 个变体；总 query 控制在 12–16 内。使用 `--compact` 后只读 JSON 并筛选，不要向用户啰嗦完整检索过程。Rust CLI 的 group 空结果 fallback 只作为 `candidate_tags`，不能无脑当 confirmed 回填。
-
-例：用户要“巫女服”，一次 batch 应覆盖 `miko`、`nontraditional miko`、`hakama`、`wide sleeves`、`detached sleeves`、`japanese clothes`，而不是只查 `group=clothing keyword=巫女服`。
-
-反例：不要连续查询 `dark` artist、`corruption` artist、`headgear`、`halo`、`dramatic`、`dark scene`。这些会造成调用量失控，且多数应由画师选择或自然语言处理。
+检索计划遵循 `danbooru-tags` 的批量与变体规则。普通生图最多 4 个语义锚点；每个锚点最多 2–3 个变体；总 query 控制在 12–16 内。使用 `--compact` 后只读 JSON 并筛选，不向用户复述完整检索过程。Rust CLI 的 group 空结果 fallback 只作为 `candidate_tags`，不能当 confirmed 回填。
 
 ## Prompt 组装规则
 
@@ -106,7 +98,7 @@ masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres,
 masterpiece, best quality, score_7, newest, year 2025,NSFW
 ```
 
-安全标签必须是 `safe / sensitive / nsfw / explicit` 之一；用户未指定时默认使用：nsfw 减少肢体崩坏。
+安全标签必须是 `safe / sensitive / nsfw / explicit` 之一；用户未指定时默认 `nsfw`。
 
 ### period 与 dataset tag
 
@@ -120,7 +112,7 @@ masterpiece, best quality, score_7, newest, year 2025,NSFW
 
 ### 画师字段
 
-`artist` 是当前工具 schema 的必填字段，且画师 tag 必须以 `@` 开头。不要使用固定默认画师组合（例如不要无脑 `@fkey, @jima`）。
+`artist` 是当前工具 schema 的必填字段，且画师 tag 必须以 `@` 开头。不要使用固定默认画师组合。
 
 - 用户指定画师：先用 `danbooru-tags --group artist` 校验，保留其选择。
 - 用户要求随机画师：用 `danbooru-tags --random 5 --for-prompt --json --compact` 取 1 个。
@@ -135,16 +127,13 @@ masterpiece, best quality, score_7, newest, year 2025,NSFW
 - 用户明确不要画师：如果客户端允许空值，可传 `artist: ""`；若工具校验拒绝，先说明 AnimaTool 当前 schema 要求画师字段。
 - 默认普通生图只选 1 个画师，并写入 `artist` / 普通 prompt 槽位。
 - 多个画师分别出图不等于画师串。用户说“分别用 A/B 画师”“每组一个画师”“A 画师 N 张、B 画师 N 张”时，走普通默认工作流，为每个 job/prompt 写单个 `@artist`。
-- 用户明确要求画师串、多画师融合、artist mixer 或多画师权重混合时，使用 `local/anima-txt2img-aesthetic-lora-artist-mixer`；把画师串写入 `artist_chain`，例如 `wlop, (sakimichan:1.2), (krenz:0.7)`（注意：**不要加 `@` 前缀**，`AnimaArtistPack` 节点已知道 `artist_chain` 全是画师名），并从 `prompt_11` 移除画师标签。
-- Artist Mixer 默认参数由 `comfyui-manager` 工作流提供：`combine_mode=output_avg`、`fusion_mode=interpolate`、`artist_mixer_strength=0.7`、`artist_mixer_normalize_weights=true`、`artist_mixer_apply_to_uncond=false`。非用户要求不要改这些参数。
-- Artist Mixer 权重分两层：`artist_chain` 的 `(name:weight)` 控制画师之间的相对比例；`artist_mixer_strength` 控制整体画师混合对 base prompt 的影响。
-- 默认保持 `artist_mixer_normalize_weights=true`；只有用户明确要求并接受风险时才关闭。关闭后 2–3 个画师可能过曝，4+ 会被节点拒绝。
-- 画师组合优先选风格相近者；差异很大的画师容易折中退化。需要主辅关系时，可从主画师 `1.0`、辅画师 `0.2–0.4` 这类相对权重开始。
+- 用户明确要求画师串、多画师融合、artist mixer 或多画师权重混合时，使用 `local/anima-txt2img-aesthetic-lora-artist-mixer`；把不带 `@` 的画师串写入 `artist_chain`，并从 `prompt_11` 移除画师标签。
+- Artist Mixer 默认参数由 `comfyui-manager` 工作流提供；非用户要求不要改这些参数。
+- `artist_chain` 可用 `(name:weight)` 表达画师之间的相对比例。
+- 画师组合优先选风格相近者；需要主辅关系时，可从主画师 `1.0`、辅画师 `0.2–0.4` 这类相对权重开始。
 - 画师串建议保持小规模；用户未指定数量时优先 2–4 个。用户明确要求更多时可以按需求执行，但应提醒画师越多速度和风格可控性越差。
 
 ### 画师时代、代表作与风格锚定
-
-Anima 的画师控制不是单独由 `artist` 决定；`year`、代表作/IP、画师权重和槽位顺序会共同塑形。不要把 `year 2025` 当成无脑固定值，也不要随意把多个画师 tag 混合后交给模型自己处理。
 
 - 用户指定年份、年代、旧画风、新画风、赛璐璐、某时期或某代表作时，必须把 `year` 视为风格控制参数，而不是普通元数据。此时更新 `quality_meta_year_safe` 中的年份，移除冲突的 `newest` / `year 2025`。
 - 用户指定某画师的代表作、时期作品或 IP 风格时，可把该代表作/IP 作为 `series` 或 style anchor 使用；先用 `danbooru-tags --group series` 校验可用 tag，查不到时写入 `nltags`，不要伪造 Danbooru tag。
@@ -172,7 +161,7 @@ hard anchors 放可被 Danbooru 稳定控制的内容：
 
 ### 槽位一致性与冲突检查
 
-组装 prompt 时按槽位检查，不要让模型自己“猜”冲突关系：
+组装 prompt 时按槽位检查冲突：
 
 - 人数/身份：`solo` 不能和多人互动标签混用；睡眠、昏迷、闭眼时不要写 `looking at viewer`。
 - 镜头/景别：`close-up` 与 `full body`、`from above` 与 `from below`、`from front` 与 `from behind` 不要同时出现；需要复杂镜头时改写到 `nltags`。
@@ -197,19 +186,17 @@ Anima 官方支持 prompt weighting；官方示例为 `(chibi:2)`。默认不要
 
 ### `nltags` 画面控制规则
 
-自然语言只写画面控制指令，不写小作文。目标是决定“画什么、怎么摆、光从哪来、镜头怎么拍”。
+自然语言只写画面控制指令。目标是决定“画什么、怎么摆、光从哪来、镜头怎么拍”。
 
 - 默认 2–4 句；复杂构图最多 5 句。
 - 单句尽量 8–18 个英文词，最多约 25 个词。
 - 每句只控制一个画面要素：动作、姿势、镜头、构图、光源、背景层级、脸部质量。
-- 禁止文学修辞、比喻、世界观解释、剧情说明、营销式形容词堆叠。
-- 禁止用抽象情绪替代可见画面；把 `mysterious, fallen, cinematic` 改成可见光影、表情、姿势。
+- 避免文学修辞、比喻、世界观解释、剧情说明、营销式形容词堆叠。
+- 抽象情绪应转为可见光影、表情、姿势或构图。
 - 不写“debut volume cover / title text placement”这类出版设计说明，除非用户明确要求文字排版。
 - 不要把同一语义在 tags 与 `nltags` 重复扩写。
 - 背景不是主体时，默认用轻微背景虚化或景深分离主体；背景本身是重点时，只说明层级和景深落点。
 - 写法优先使用直接控制句：`Place her full body slightly right of center.` / `Use a low front camera angle.` / `Keep her face sharp and undistorted.`
-
-反例：长段落描述角色命运、城市氛围、光芒碎片和封面情绪，会稀释主体。应压缩成动作、姿势、光源、构图和背景层级。
 
 ## 多图与批量策略
 
@@ -251,15 +238,6 @@ Anima 官方支持 prompt weighting；官方示例为 `(chibi:2)`。默认不要
 }
 ```
 
-常用覆盖：
-
-- 3:2 横图：`width=1536, height=1024`
-- 16:9 横幅：`width=1536, height=864`
-- 4:3 横图：`width=1536, height=1152`
-- 3:4 竖图：`width=1152, height=1536`
-- 2:1 宽幅：`width=1536, height=768`
-- 方图：`width=1024, height=1024`
-- 大方图：`width=1536, height=1536`，仅用于高信息量中心构图
 - 高质量构图 / 大场景 / 强光影 / 复杂背景 / 高分辨率精修：`steps=40`
 - RTX VSR 质量：`rtx_vsr_quality="LOW|MEDIUM|HIGH|ULTRA"`
 - TeaCache 版本通常不传；如需覆盖 `teacache_version`，必须传完整枚举值 `v1 (Legacy Fast)` 或 `v2 (Standard Precise)`，不要传短值 `v1` / `v2`。
@@ -290,20 +268,10 @@ Anima 官方支持 prompt weighting；官方示例为 `(chibi:2)`。默认不要
 
 用户：生成天使心跳的立华奏，三无感，教室窗边柔光。
 
-先批量校验角色、作品、最终画师，以及一个必要外观锚点；教室窗边柔光写入 `environment` / `nltags`，不额外查环境光影。
-
 ```json
 {
-  "quality_meta_year_safe": "masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025, safe",
-  "count": "1girl",
-  "character": "kanade tachibana",
-  "series": "angel beats!",
-  "artist": "@validated artist",
-  "appearance": "silver hair, yellow eyes, long hair, school uniform",
-  "tags": "solo, expressionless, looking at viewer, face focus, eye focus, depth of field",
-  "environment": "classroom, window, soft light, backlighting, blurry background",
-  "nltags": "Place her beside the classroom window, facing the viewer. Use soft daylight from the left side. Keep her face centered, sharp, and undistorted. Blur the classroom background gently.",
-  "neg": "worst quality, low quality, score_1, score_2, score_3, blurry, bad anatomy, bad hands, bad feet, extra fingers, missing fingers, distorted face, text, watermark, logo, artist name",
+  "prompt_11": "masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025, safe, 1girl, kanade tachibana, angel beats!, @validated artist, silver hair, yellow eyes, long hair, school uniform, solo, expressionless, looking at viewer, face focus, classroom, window, depth of field. Place her beside the classroom window, facing the viewer. Use soft daylight from the left side. Keep her face centered, sharp, and undistorted.",
+  "prompt_12": "worst quality, low quality, score_1, score_2, score_3, blurry, bad anatomy, bad hands, bad feet, extra fingers, missing fingers, distorted face, text, watermark, logo, artist name",
   "width": 1024,
   "height": 1536,
   "batch_size": 1,

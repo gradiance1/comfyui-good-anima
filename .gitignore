@@ -25,6 +25,7 @@ Typora_Hook_Log.txt
 # Skills cache / runtimes
 cache/
 outputs/
+runtime/
 tmp/
 
 # Archives

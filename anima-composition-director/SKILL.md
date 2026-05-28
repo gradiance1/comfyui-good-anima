@@ -5,18 +5,9 @@ description: Convert Anima image-generation intent, tags, references, or rough p
 
 # Anima Composition Director
 
-Use this skill before final Anima prompt assembly when composition, camera, lighting, or canvas choice matters. It does not search tags and does not run ComfyUI.
-
 ## Goal
 
-Turn a semantic draft into a small visual plan the model can execute:
-
-1. Decide the canvas from the final image idea.
-2. Choose camera distance and angle.
-3. Place the subject in the frame.
-4. Define foreground / midground / background.
-5. Set light direction and depth of field.
-6. Emit short English control sentences for `nltags`.
+将生图意图转成简短视觉计划：画布、镜头、主体位置、层次、光源、景深，以及可传给 `nltags` 的短英文控制句。
 
 Do not write literary mood paragraphs. Describe the picture layout.
 
@@ -70,7 +61,7 @@ Mode rules:
 
 ## Camera grammar
 
-Borrow cinematography terms as static-frame controls, not as video directions. Pick one value from each row unless the user explicitly needs a special shot:
+每行选一个值，除非用户明确需要特殊镜头：
 
 - Distance: `close-up`, `upper body`, `cowboy shot`, `full body`, `wide shot`.
 - Angle: `eye-level`, `low front angle`, `high angle`, `side view`, `three-quarter view`, `over-shoulder view`, `top-down view`.
@@ -80,11 +71,8 @@ Borrow cinematography terms as static-frame controls, not as video directions. P
 
 Avoid contradictions: no `close-up` with `full body`; no `from above` with `from below`; no wide shot if the face must dominate.
 
-Video-prompting rules that transfer well:
-
 - One frame gets one primary camera idea; do not stack `low angle`, `top-down`, and `over-shoulder` together.
-- Convert movement words into frozen composition: `tracking shot` → subject offset with background leading lines; `push-in` → close framing and stronger face emphasis; `orbit` → three-quarter view with curved background cues.
-- Use shot vocabulary only when it changes visible layout. Do not add cinema terms as decoration.
+- Convert movement terms into static layout: `tracking shot` means subject offset plus background leading lines; `push-in` means closer framing and stronger face emphasis; `orbit` means three-quarter view with curved background cues.
 - For action, describe the peak pose and motion direction, not a sequence of events.
 
 ## Composition patterns
@@ -100,21 +88,13 @@ Use one clear pattern:
 
 State subject placement and background direction. Example: `Place the subject slightly right of center, with the corridor receding to the left.`
 
-Visual-design rules that transfer well:
+Visual-design rules:
 
 - Establish one focal point first; secondary props and background must support it.
-- Use either negative space or controlled density, not both.
-- Use overlap to show depth, but keep overlaps away from the face and hands.
-- Put the most readable silhouette against the simplest background area.
-- If the prompt has many tags, reduce background complexity before reducing identity tags.
-- For poster/key-visual layouts, reserve a clean area only if text or logo placement is requested.
-
-Painterly rules that transfer well:
-
-- Prefer clear value separation: bright subject on darker background, or dark subject on bright background.
-- Use edge control: sharp face and hands; softer hair ends, clothing edges, and background.
-- Use color grouping: one dominant palette plus one accent color; avoid naming many unrelated colors.
-- When clothing is complex, simplify the background and use a medium shot or full body with clean silhouette.
+- Keep face and hands readable; move overlaps away from them.
+- Put the clearest silhouette against the simplest background area.
+- When clothing is complex, simplify the background and keep the silhouette readable.
+- Use clear value separation, controlled edges, and one dominant color palette plus one accent color.
 
 ## Lighting and depth
 
@@ -128,14 +108,6 @@ Define light as visible geometry, not abstract mood:
 - For 2:1 or wide shots, explicitly protect face readability.
 - Avoid stacking many post-process words; pick one: bloom, vignette, lens flare, film grain, or chromatic aberration.
 - Use vignette only to guide the eye toward the subject, not as a default style word.
-
-Useful short controls:
-
-- `Use soft window light from the left.`
-- `Add a thin rim light around the silhouette.`
-- `Keep the face sharp; blur the background softly.`
-- `Keep foreground objects out of the face area.`
-- `Keep the strongest contrast around the face and upper body.`
 
 ## Reference image transfer
 

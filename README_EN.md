@@ -226,8 +226,10 @@ comfyui-skill workflow import ../data/anima-txt2img-aesthetic-lora.json --check-
 
 ```powershell
 cd comfyui-good-anima/comfyui-manager/workspace
-node run_workflow_args.js run local/anima-txt2img-aesthetic-lora .\args_anima.json
+node ./run_workflow_args.js run local/anima-txt2img-aesthetic-lora ./args_anima.json
 ```
+
+`run_workflow_args.js` passes JSON args safely through argv, avoiding PowerShell inline `--args` quoting issues with quotes, backslashes, and newlines. Runtime history, cache, and temporary outputs are written to the resolved runtime directory by default. Set `COMFYUI_MANAGER_RUNTIME_DIR` or `SKILL_RUNTIME_ROOT` to override it.
 
 ---
 
@@ -324,6 +326,13 @@ comfyui-good-anima/
 │       ├── data/                           # Workflow JSON definitions
 │       ├── cache_anima_outputs.js
 │       └── run_workflow_args.js
+│
+├── runtime/                                # Optional runtime artifacts (local, not for commit)
+│   ├── comfyui-manager/
+│   │   ├── outputs/
+│   │   ├── cache/
+│   │   └── history/
+│   └── danbooru-tags/
 │
 └── danbooru-tags/                          # 🏷️ Tag retriever
     ├── SKILL.md
