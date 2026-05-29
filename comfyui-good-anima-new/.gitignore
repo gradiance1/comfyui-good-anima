@@ -1,0 +1,25 @@
+# === comfyui-good-anima-new 技能集群 .gitignore ===
+
+# 编辑器自动生成
+**/Typora_Hook_Log.txt
+**/Thumbs.db
+*.swp
+*.swo
+*~
+
+# 运行时数据（由 $RUNTIME 变量动态创建，不应纳入版本控制）
+runtime/
+
+# 大体积非技能文件
+*.mp4
+
+# Git 元数据（防止嵌套仓库）
+**/.git/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# Rust 编译产物
+target/

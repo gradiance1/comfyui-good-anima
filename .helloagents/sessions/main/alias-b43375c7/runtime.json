@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "scope": "project-session",
+  "key": "D:\\github\\comfyui-good-anima::main::alias-b43375c7",
+  "cwd": "D:\\github\\comfyui-good-anima",
+  "branch": "main",
+  "workspace": "main",
+  "session": "alias-b43375c7",
+  "sessionMode": "alias-session",
+  "updatedAt": "2026-05-28T09:43:28.808Z",
+  "turn": {
+    "cwd": "D:\\github\\comfyui-good-anima",
+    "key": "D:\\github\\comfyui-good-anima::main::alias-b43375c7",
+    "scope": "project-session",
+    "updatedAt": "2026-05-28T09:43:28.799Z",
+    "kind": "complete",
+    "role": "main",
+    "phase": "",
+    "source": "manual",
+    "requiresDeliveryGate": false,
+    "reasonCategory": "",
+    "reason": ""
+  },
+  "route": null,
+  "artifacts": {},
+  "turnUpdatedAt": "2026-05-28T09:43:28.804Z"
+}

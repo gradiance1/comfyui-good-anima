@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "cwd": "D:\\github\\comfyui-good-anima",
+  "workspace": "main",
+  "session": "alias-b43375c7",
+  "sessionMode": "active-session",
+  "host": "",
+  "source": "manual",
+  "hostHint": "alias:b43375c7",
+  "aliases": {
+    "alias:b43375c7": "alias-b43375c7",
+    "b43375c7": "alias-b43375c7"
+  },
+  "updatedAt": "2026-05-28T09:43:28.815Z"
+}
