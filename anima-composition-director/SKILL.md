@@ -5,13 +5,9 @@ description: Convert Anima image-generation intent, tags, references, or rough p
 
 # Anima Composition Director
 
-## 默认职责
-
-本 skill 只做构图决策（画布、镜头、主体位置、光源、景深），输出短英文控制句和 JSON。它不搜索 tag，不执行 ComfyUI，不组装完整 prompt。
-
 ## Goal
 
-将生图意图转成简短视觉计划：画布、镜头、主体位置、层次、光源、景深，以及可传给 `nltags` 的短英文控制句。
+将生图意图转成视觉计划：画布、镜头、主体位置、层次、光源、景深。
 
 Do not write literary mood paragraphs. Describe the picture layout.
 

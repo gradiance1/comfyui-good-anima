@@ -49,7 +49,7 @@ description: Use for Anima / ComfyUI-AnimaTool image generation. Route Anima gen
 
 ### 分辨率与构图回写
 
-不要一开始套默认 `1024x1536`。先按 `anima-composition-director` 的 canvas fit 固定最终 `width/height`，再把主体位置、景别、留白方向、背景展开方向回写到 `nltags`。用户明确给尺寸时必须使用，但要检查构图是否适配。（后文可验证案例中的 `1024x1536` 是"教室窗边半身像"场景下按 canvas_fit 得出的结果，不是所有场景的默认值。）
+不要一开始套默认 `1024x1536`。先按 `anima-composition-director` 的 canvas fit 固定最终 `width/height`，再把主体位置、景别、留白方向、背景展开方向回写到 `nltags`。用户明确给尺寸时必须使用，但要检查构图是否适配。
 
 规则：用户允许使用某分辨率仅表示可用，不是默认全部使用。多图时每张图按各自的构图复杂度独立选择画布，禁止批量套用同一分辨率。
 
@@ -57,7 +57,7 @@ description: Use for Anima / ComfyUI-AnimaTool image generation. Route Anima gen
 
 ### 质量步数推断
 
-默认 `steps=30` 追求速度与质量平衡；但模型必须根据用户意图主动调整，不要把 30 步当成所有场景的固定值。
+默认 `steps=30`；禁止所有场景固定此值，必须按用户意图调整。
 
 - 普通单人、简单半身、快速测试、没有强调精修或复杂背景 → `steps=30`。
 - 用户明确高质量、精修、壁纸、大场景、复杂背景、强光影、透明感、细节层次，或指定画师风格本身依赖大背景和光影表现 → `steps=40`。
@@ -172,7 +172,7 @@ hard anchors 放可被 Danbooru 稳定控制的内容：
 - tag 库缺失的服装/配饰/材质组合
 - 光影、空间、氛围的完整描述
 
-同一语义不要在 tags 和 `nltags` 中冲突。Anima 有 tag dropout 训练，不需要塞满所有相关 tag；优先少量硬锚点 + 清晰自然语言补足。
+同一语义不要在 tags 和 `nltags` 中冲突。不要堆 tag，优先少量硬锚点 + 清晰自然语言补足。
 
 ### 槽位一致性与冲突检查
 
@@ -191,7 +191,7 @@ hard anchors 放可被 Danbooru 稳定控制的内容：
 
 ### 权重控制
 
-Anima 官方支持 prompt weighting；官方示例为 `(chibi:2)`。默认不要加权，先靠准确 tag、槽位顺序和短句控制。
+Anima 支持 prompt weighting，示例：`(chibi:2)`。默认不要加权，先靠准确 tag、槽位顺序和短句控制。
 
 - 只有用户明确要求强化/弱化，或某元素多次不稳定时才加权。
 - Anima 权重从 `(tag:2)` 级别开始测试；`1.1–1.3` 这类小权重通常不要作为默认方案。
@@ -298,7 +298,6 @@ Anima 官方支持 prompt weighting；官方示例为 `(chibi:2)`。默认不要
 
 ## 执行交接
 
-- 本 skill 决定语义参数：prompt、负面提示词、画布、steps、批量意图、画师串意图和 `filename_prefix` 语义来源。
 - 生图执行、CLI 参数传递、缓存、队列和执行层节点护栏交给 `comfyui-manager`；本 skill 不主动覆盖 FLSampler、TeaCache、AnimaBoosterLoader 等执行节点参数。
 - 默认使用 `local/anima-txt2img-aesthetic-lora`；`local/anima-txt2img-aesthetic-lora-artist-mixer` 只在用户明确要求画师串/多画师融合时使用。
 - `local/anima-txt2img-base` 只在用户明确指定基础版、禁用 LoRA、对比测试或排查问题时使用。

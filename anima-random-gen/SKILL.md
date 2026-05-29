@@ -5,8 +5,6 @@ description: Generate randomized but Anima-compliant image parameters after comf
 
 # Anima 随机图生成器
 
-本 skill 只在 `comfyui-animatool` 已确认"随机图 / roll 图 / 抽卡并生图"意图后使用。它产出参数，不直接生图。
-
 ## 默认职责
 
 本 skill 只在 `comfyui-animatool` 已确认随机生图意图后使用。它产出随机参数（画师、prompt、画布、采样参数），不直接生图。
@@ -42,7 +40,7 @@ description: Generate randomized but Anima-compliant image parameters after comf
 
 随机图不能只是随机抽 tag。生成随机参数前，先按 `anima-composition-director` 的方法确定主体、镜头、构图、光源、画布和 `nltags_sentences`，再随机画师与 hard anchors。
 
-随机结果必须像一张完整画面的说明，而不是互不相关的标签池采样。
+随机结果必须输出完整画面描述，禁止互不相关的标签池采样。
 
 ### 分辨率与构图回写
 
@@ -103,13 +101,11 @@ Anima 官方支持 prompt weighting，但小权重通常不明显；官方示例
 2. `artist` 为 `@artist name`；若有 `artist_chain`，确认它不带 `@` 且普通 prompt 不重复包含多画师。
 3. `quality_meta_year_safe` 有安全标签。
 4. `environment` 与 `nltags` 分离且不冲突。
-5. `nltags` 的主体位置、景别和背景方向匹配最终 `width/height`。
-6. 单人、头像、半身或角色表现图保留脸部清晰控制；背景不是主体时保留轻微背景虚化或景深控制。
-7. `steps=30`、`cfg=4.5`、`sampler_name=dpmpp_2m_sde_gpu`、`scheduler=beta57`，除非用户指定覆盖。
+5. `steps=30`、`cfg=4.5`、`sampler_name=dpmpp_2m_sde_gpu`、`scheduler=beta57`，除非用户指定覆盖。
 
 ## 禁止
 
-- 不要直接输出纯 tag 串冒充随机图参数。
+- 禁止以纯 tag 串替代随机图参数。
 
 - 不要丢弃 `nltags`。
 
