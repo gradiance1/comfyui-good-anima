@@ -35,7 +35,7 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 3. 自动化脚本可显式设置环境变量 `DANBOORU_TAGS_DIR`。
 4. 从通用 Agent Skills 安装环境启动时，可从当前目录向上查找任意 `skills/` 容器，再定位 `danbooru-tags`。
 5. 不要写死用户名或任何 agent 平台安装目录。
-6. 首次运行先从常见安装路径搜索 `danbooru-tags` 目录（如 `.snow/skills/`、`.codex/skills/`、`.supernote/skills/`、项目根目录），找到后 `cd` 进入。
+6. 首次运行从当前已加载 skill 的根目录（即 `$env:SKILL_RUNTIME_ROOT` 或 `skills/` 容器目录）下查找 `danbooru-tags`，找到后 `cd` 进入。
 
 找到目录后执行路径发现脚本：
 执行 `.\bin\setup-dir.ps1`
