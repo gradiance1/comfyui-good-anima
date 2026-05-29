@@ -324,8 +324,8 @@ function Write-JsonForCli($Path, $Value) {
   [System.IO.File]::WriteAllText($Path, $json, [System.Text.UTF8Encoding]::new($false))
 }
 
-function Submit-AnimaJob($ArgsFile) {
-  $output = node .\run_workflow_args.js submit local/anima-txt2img-aesthetic-lora $ArgsFile
+function Submit-AnimaJob($WorkflowId, $ArgsFile) {
+  $output = node .\run_workflow_args.js submit $WorkflowId $ArgsFile
   if ($LASTEXITCODE -ne 0) { throw "submit failed: $ArgsFile" }
   return ($output | ConvertFrom-Json)
 }
@@ -344,7 +344,7 @@ foreach ($file in $files) {
 }
 
 foreach ($file in $files) {
-  $result = Submit-AnimaJob $file.args_file
+  $result = Submit-AnimaJob $workflowId $file.args_file
   $promptId = if ($result.prompt_id) { $result.prompt_id } elseif ($result.data.prompt_id) { $result.data.prompt_id } else { $null }
   if (-not $promptId) { throw "submit succeeded but prompt_id was missing: $($file.args_file)" }
   $manifest += [pscustomobject]@{
@@ -358,6 +358,23 @@ foreach ($file in $files) {
 if ($manifest.Count -eq 0) { throw "no jobs were submitted" }
 Write-JsonForCli (Join-Path $RUNTIME "batch_manifest.json") $manifest
 comfyui-skill --json --dir "$WORKSPACE" queue list
+Pop-Location
+```
+
+后处理模板：读取 `batch_manifest.json`，等待每个 `prompt_id` 完成，再补建缓存。
+
+```powershell
+Push-Location "$WORKSPACE"
+$manifest = Get-Content -LiteralPath (Join-Path $RUNTIME "batch_manifest.json") -Raw | ConvertFrom-Json
+foreach ($job in $manifest) {
+  do {
+    Start-Sleep -Seconds 2
+    $status = comfyui-skill --json --dir "$WORKSPACE" status $job.prompt_id | ConvertFrom-Json
+    $state = if ($status.data.status) { $status.data.status } else { $status.status }
+  } until ($state -in @("success", "completed", "error", "failed", "cancelled", "canceled"))
+  if ($state -notin @("success", "completed")) { throw "job failed: $($job.job_id)" }
+}
+node .\cache_anima_outputs.js --workflow-id $manifest[0].workflow_id
 Pop-Location
 ```
 

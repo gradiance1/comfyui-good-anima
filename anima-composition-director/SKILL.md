@@ -76,7 +76,7 @@ Mode rules:
 每行选一个值，除非用户明确需要特殊镜头：
 
 - Distance: `close-up`, `upper body`, `cowboy shot`, `full body`, `wide shot`.
-- Angle: `eye-level`, `low front angle`, `high angle`, `side view`, `three-quarter view`, `over-shoulder view`, `top-down view`.
+- Angle: `eye-level`, `low front angle`, `high angle`, `side view`, `three-quarter view`, `over-shoulder view`, `top-down view`, `pov`, `first-person view`.
 - Lens feel: `normal perspective` by default; use `wide-angle` only for strong space or action. Avoid fisheye unless requested.
 - Focus technique: `shallow depth of field`, `deep focus`, `rack focus look`, or `soft background blur`.
 - Face rule: if identity matters, include `Keep the face sharp and readable.`

@@ -189,6 +189,14 @@ hard anchors 放可被 Danbooru 稳定控制的内容：
 
 多人图必须明确属性归属：不要只写一组发色、瞳色、服装后接多个角色名；用简短英文句说明每个角色的关键外观、服装、相对位置和主动作。角色之间有互动时，把谁看向谁、谁在前景/后景、谁执行动作写进 `nltags`。
 
+多人图推荐句式：每句绑定“位置 + 角色 + 外观/服装 + 动作”。角色数量没有固定上限；角色越多越要减少每个角色的细节，只保留身份、位置和最关键外观。
+
+```text
+Place <character A> on the front left, with <hair>, <outfit>, and <main action>.
+Place <character B> on the front right, with <hair>, <outfit>, and <main action>.
+For each additional character, add one sentence with a clear relative position and only the most important visible trait.
+```
+
 ### 权重控制
 
 Anima 支持 prompt weighting，示例：`(chibi:2)`。默认不要加权，先靠准确 tag、槽位顺序和短句控制。
