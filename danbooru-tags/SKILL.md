@@ -44,6 +44,9 @@ function Find-DanbooruTagsDirFromSkills($Start) {
         if (Test-DanbooruTagsDir $candidate) { return (Resolve-Path $candidate).Path }
       }
     }
+    # 回退：平铺结构，直接检查当前目录及子目录
+    $flatCandidate = Join-Path $cursor "danbooru-tags"
+    if (Test-DanbooruTagsDir $flatCandidate) { return (Resolve-Path $flatCandidate).Path }
     $parent = Split-Path $cursor -Parent
     if ($parent -eq $cursor) { break }
     $cursor = $parent

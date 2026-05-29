@@ -44,6 +44,9 @@ function Find-ComfyManagerWorkspaceFromSkills($Start) {
         if (Test-ComfyManagerWorkspace $candidate) { return (Resolve-Path $candidate).Path }
       }
     }
+    # 回退：平铺结构，直接检查当前目录及子目录
+    $flatCandidate = Join-Path $cursor "comfyui-manager\workspace"
+    if (Test-ComfyManagerWorkspace $flatCandidate) { return (Resolve-Path $flatCandidate).Path }
     $parent = Split-Path $cursor -Parent
     if ($parent -eq $cursor) { break }
     $cursor = $parent
@@ -605,7 +608,7 @@ comfyui-skill --json --dir "$WORKSPACE" deps check local/anima-txt2img-aesthetic
 $wf = Get-Content -LiteralPath "data/local/<workflow_id>/workflow.json" -Raw | ConvertFrom-Json -Depth 100
 $body = @{ prompt = $wf; client_id = "debug" } | ConvertTo-Json -Depth 100
 try {
-  Invoke-RestMethod -Uri "http://127.0.0.1:8188/prompt" -Method POST -Body $body -ContentType "application/json"
+  Invoke-RestMethod -Uri "http://127.0.0.1:8188/prompt" -Method POST -Body $body -ContentType "application/json"  # 调试用默认端口；生产环境应从 config.json 读取 server URL
 } catch {
   Write-Host $_.ErrorDetails.Message
 }

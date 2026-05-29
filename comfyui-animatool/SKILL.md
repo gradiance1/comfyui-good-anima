@@ -272,7 +272,7 @@ Anima 官方支持 prompt weighting；官方示例为 `(chibi:2)`。默认不要
 
 ```json
 {
-  "prompt_11": "masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025, safe, 1girl, kanade tachibana, angel beats!, @validated artist, silver hair, yellow eyes, long hair, school uniform, solo, expressionless, looking at viewer, face focus, classroom, window, depth of field. Place her beside the classroom window, facing the viewer. Use soft daylight from the left side. Keep her face centered, sharp, and undistorted.",
+  "prompt_11": "masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025, safe, 1girl, kanade tachibana, angel beats!, @mignon  # 示例画师，实际使用前必须经 danbooru-tags 校验替换, silver hair, yellow eyes, long hair, school uniform, solo, expressionless, looking at viewer, face focus, classroom, window, depth of field. Place her beside the classroom window, facing the viewer. Use soft daylight from the left side. Keep her face centered, sharp, and undistorted.",
   "prompt_12": "worst quality, low quality, score_1, score_2, score_3, blurry, bad anatomy, bad hands, bad feet, extra fingers, missing fingers, distorted face, text, watermark, logo, artist name",
   "width": 1024,
   "height": 1536,
