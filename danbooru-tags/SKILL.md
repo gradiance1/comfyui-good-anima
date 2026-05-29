@@ -64,7 +64,7 @@ $DANBOORU_TAGS_DIR = if ($env:DANBOORU_TAGS_DIR) {
 } else {
   throw "Set DANBOORU_TAGS_DIR or run from a directory that can discover skills/danbooru-tags"
 }
-cd "$DANBOORU_TAGS_DIR"
+Push-Location "$DANBOORU_TAGS_DIR"  # 后续 CLI 命令依赖此 CWD；调用完成后可用 Pop-Location 恢复
 ```
 
 生图前多锚点检索优先用批量入口。Shell 下复杂 batch JSON 必须写入文件，避免内联 JSON 被拆坏：

@@ -102,11 +102,15 @@ $RUNTIME = if ($env:COMFYUI_MANAGER_RUNTIME_DIR) {
 } elseif ($env:SKILL_RUNTIME_ROOT) {
   Join-Path $env:SKILL_RUNTIME_ROOT "comfyui-manager"
 } else {
-  $config = Get-Content -LiteralPath (Join-Path $WORKSPACE "config.json") -Raw | ConvertFrom-Json
-  $outputDir = $config.servers[0].output_dir
-  if ($outputDir) {
-    Split-Path ([System.IO.Path]::GetFullPath((Join-Path $WORKSPACE $outputDir))) -Parent
-  } else {
+  try {
+    $config = Get-Content -LiteralPath (Join-Path $WORKSPACE "config.json") -Raw | ConvertFrom-Json
+    $outputDir = $config.servers[0].output_dir
+    if ($outputDir) {
+      Split-Path ([System.IO.Path]::GetFullPath((Join-Path $WORKSPACE $outputDir))) -Parent
+    } else {
+      Join-Path (Resolve-Path (Join-Path $WORKSPACE "..\..")).Path "runtime\comfyui-manager"
+    }
+  } catch {
     Join-Path (Resolve-Path (Join-Path $WORKSPACE "..\..")).Path "runtime\comfyui-manager"
   }
 }
@@ -126,7 +130,7 @@ Runtime 解析优先级：`COMFYUI_MANAGER_RUNTIME_DIR` > `SKILL_RUNTIME_ROOT/co
 默认直接运行：
 
 ```powershell
-cd "$WORKSPACE"
+Push-Location "$WORKSPACE"
 node .\run_workflow_args.js run local/anima-txt2img-aesthetic-lora .\args_anima.json
 ```
 
@@ -353,12 +357,12 @@ Anima 本地缓存规则：每次成功执行 Anima 生图后，除了返回 `ou
 多 prompt 队列示例：
 
 ```powershell
-cd WORKSPACE
+Push-Location "$WORKSPACE"
 $jobs = Get-Content -LiteralPath .\batch_jobs.json -Raw | ConvertFrom-Json
 $ids = @()
 foreach ($job in $jobs) {
   $argsFile = ".\batch_args\$($job.id).json"
-  $job.args | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $argsFile -Encoding utf8
+  $job.args | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath "$argsFile" -Encoding utf8
   $result = node .\run_workflow_args.js submit local/anima-txt2img-aesthetic-lora $argsFile | ConvertFrom-Json
   $ids += $result.prompt_id
 }
@@ -396,10 +400,10 @@ $ids
 
 ```powershell
 # 阻塞式执行（等待完成，有实时 WebSocket 输出）
-cd WORKSPACE && node .\run_workflow_args.js run local/workflow_id .\args.json
+Push-Location "$WORKSPACE"; node .\run_workflow_args.js run local/workflow_id .\args.json
 
 # 非阻塞提交（立即返回 prompt_id）
-cd WORKSPACE && node .\run_workflow_args.js submit local/workflow_id .\args.json
+Push-Location "$WORKSPACE"; node .\run_workflow_args.js submit local/workflow_id .\args.json
 
 # 检查执行状态
 comfyui-skill --json --dir "$WORKSPACE" status <prompt_id>
@@ -408,7 +412,7 @@ comfyui-skill --json --dir "$WORKSPACE" status <prompt_id>
 comfyui-skill --json --dir "$WORKSPACE" cancel <prompt_id>
 
 # 用优先级跳跃队列（负数插队）时也继续走 run_workflow_args.js，额外 CLI 参数放在 JSON 文件参数之后。
-cd WORKSPACE && node .\run_workflow_args.js run local/workflow_id .\args.json --priority -1
+Push-Location "$WORKSPACE"; node .\run_workflow_args.js run local/workflow_id .\args.json --priority -1
 ```
 
 ### 上传文件（用于 img2img 等）
@@ -539,7 +543,7 @@ comfyui-skill --json --dir "$WORKSPACE" info local/txt2img
 然后根据返回的 schema 构造 args：
 
 ```powershell
-cd WORKSPACE
+Push-Location "$WORKSPACE"
 node .\run_workflow_args.js run local/txt2img .\args.json
 ```
 
