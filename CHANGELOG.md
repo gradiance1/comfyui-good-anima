@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.3 — 构图规则补充与噪音控制 (2026-05-30)
+
+- `anima-composition-director` 增加场景一致性规则，要求姿态、表情、服装、道具、天气和背景服务同一个画面锚点。
+- 补充基础 framing safety：lead room、headroom、关节裁切安全、前景框景和 tangent/edge kissing 避免规则。
+- 保持构图 skill 精简，不引入摄影/绘画教材式长表或平台路径说明。
+
 ## v0.3.2 — Danbooru CLI 入口精简与批量输入修复 (2026-05-30)
 
 - `danbooru-tags.exe` 增加 `--batch-stdin`，批量检索可直接从 stdin 读取 JSON。

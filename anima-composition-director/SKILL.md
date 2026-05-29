@@ -100,6 +100,20 @@ Use one clear pattern:
 
 State subject placement and background direction. Example: `Place the subject slightly right of center, with the corridor receding to the left.`
 
+Scene coherence:
+
+- Pick one story anchor: character action, prop interaction, weather effect, or location function.
+- Pose, expression, outfit, prop, weather, and background must support that anchor; remove details that tell a different story.
+- If the environment matters, show how the character uses or reacts to it, not just where they stand.
+
+Framing safety:
+
+- Lead room: if a subject looks or moves sideways, leave open space in that direction unless the user wants cramped tension.
+- Headroom: keep small space above the head in portraits; use extra top space only for sky, title, or scale.
+- Crop safety: avoid accidental cuts through wrists, elbows, knees, ankles, hands, or feet; crop wider or clearly between joints.
+- Foreground framing: use doorframes, windows, branches, or props only when they guide attention to the subject.
+- Avoid tangents: do not let character outlines, props, or background edges just touch; separate them or overlap clearly.
+
 Visual-design rules:
 
 - Establish one focal point first; secondary props and background must support it.
