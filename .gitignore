@@ -41,3 +41,7 @@ tmp/
 
 # New version (未稳定前暂不追踪)
 comfyui-good-anima-new/
+
+# Agent 会话和技能缓存（不应提交）
+.helloagents/sessions/
+.snow/
