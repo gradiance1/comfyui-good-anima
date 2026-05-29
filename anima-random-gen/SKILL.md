@@ -102,6 +102,8 @@ Anima 官方支持 prompt weighting，但小权重通常不明显；官方示例
 3. `quality_meta_year_safe` 有安全标签。
 4. `environment` 与 `nltags` 分离且不冲突。
 5. `steps=30`、`cfg=4.5`、`sampler_name=dpmpp_2m_sde_gpu`、`scheduler=beta57`，除非用户指定覆盖。
+6. `nltags` 必须匹配最终 `width/height`：横图强调左右空间和背景展开，竖图强调主体纵向关系，方图强调中心构图。
+7. 单人、头像、半身或角色表现图必须保留脸部可读性控制；复杂背景不能遮挡主体脸部。
 
 ## 禁止
 

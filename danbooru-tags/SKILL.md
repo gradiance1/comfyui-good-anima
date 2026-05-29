@@ -28,7 +28,7 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 
 > 路径解析：执行下方 PowerShell 脚本，自动搜索 `skills/` 容器定位本目录。脚本失败时设置 `$env:DANBOORU_TAGS_DIR`。
 
-`DANBOORU_TAGS_DIR` 是包含 `bin/danbooru-tags.exe`、`anima-1.0.csv`、`tags_index.sqlite` 的目录。路径解析规则：
+`DANBOORU_TAGS_DIR` 是包含 `SKILL.md` 与 `tags_index.sqlite` 或 `anima-1.0.csv` 的目录；执行查询时还必须存在 `bin/danbooru-tags.exe`。路径解析规则：
 
 1. 已读取本 `SKILL.md` 时，优先使用该文件所在目录。
 2. 已在 skill 目录中执行命令时，优先使用当前目录。
@@ -38,9 +38,7 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 6. 首次运行从当前已加载 skill 的根目录（即 `$env:SKILL_RUNTIME_ROOT` 或 `skills/` 容器目录）下查找 `danbooru-tags`，找到后 `cd` 进入。
 
 找到目录后执行路径发现脚本：
-执行 `.\bin\setup-dir.ps1`
-
-````
+执行 `. .\bin\setup-dir.ps1`。必须 dot-source 调用，让 `$DANBOORU_TAGS_DIR` 和 `$DANBOORU_RUNTIME_DIR` 留在当前会话。
 
 生图前多锚点检索优先用批量入口。Shell 下复杂 batch JSON 必须写入文件，避免内联 JSON 被拆坏：
 
@@ -55,7 +53,7 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 }
 '@ | Set-Content -LiteralPath .\batch_tags.json -Encoding utf8
 .\bin\danbooru-tags.exe --batch-workers 8 --batch-file .\batch_tags.json --for-prompt --json --compact
-````
+```
 
 PowerShell 7.x 使用 `Set-Content -Encoding utf8`；只能确认 Windows PowerShell 5.x 时，使用 `[System.IO.File]::WriteAllText(..., [System.Text.UTF8Encoding]::new($false))` 写入无 BOM UTF-8。
 
@@ -106,6 +104,7 @@ PowerShell 7.x 使用 `Set-Content -Encoding utf8`；只能确认 Windows PowerS
 - 模型选择的 `N` 必须在 1–300 内；没有数量要求时按任务自选，普通建议 10–50，不要把 50/100 写死成所有场景默认值。
 - 不要调用 10 次 `--random 5 --for-prompt --json`。
 - `--for-prompt` 是生图回填模式，会故意只返回 1 个画师，避免把长画师串塞进 prompt。
+- 随机 tag 候选不得使用 `--for-prompt`；`--for-prompt` 只用于生图回填并会压缩输出。
 - 从候选中选画师时，最多选 1 个；用户明确要求混合风格时最多 2 个。
 - 随机画师筛选优先使用当前结果中的 `count`；只有用户明确要求覆盖门槛时才补查。
 

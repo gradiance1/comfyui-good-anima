@@ -10,9 +10,13 @@ function Find-ComfyManagerWorkspaceFromSkills($Start) {
     foreach ($skillsDir in $skillsDirs) {
       $candidate = Join-Path $skillsDir.FullName "comfyui-manager\workspace"
       if (Test-ComfyManagerWorkspace $candidate) { return (Resolve-Path $candidate).Path }
+      $nestedCandidate = Join-Path $skillsDir.FullName "comfyui-good-anima\comfyui-manager\workspace"
+      if (Test-ComfyManagerWorkspace $nestedCandidate) { return (Resolve-Path $nestedCandidate).Path }
     }
     $flatCandidate = Join-Path $cursor "comfyui-manager\workspace"
     if (Test-ComfyManagerWorkspace $flatCandidate) { return (Resolve-Path $flatCandidate).Path }
+    $bundleCandidate = Join-Path $cursor "comfyui-good-anima\comfyui-manager\workspace"
+    if (Test-ComfyManagerWorkspace $bundleCandidate) { return (Resolve-Path $bundleCandidate).Path }
     $parent = Split-Path $cursor -Parent
     if ($parent -eq $cursor) { break }
     $cursor = $parent
@@ -41,7 +45,12 @@ $RUNTIME = if ($env:COMFYUI_MANAGER_RUNTIME_DIR) {
     $config = Get-Content -LiteralPath (Join-Path $WORKSPACE "config.json") -Raw | ConvertFrom-Json
     $outputDir = $config.servers[0].output_dir
     if ($outputDir) {
-      Split-Path ([System.IO.Path]::GetFullPath((Join-Path $WORKSPACE $outputDir))) -Parent
+      $resolvedOutput = [System.IO.Path]::GetFullPath((Join-Path $WORKSPACE $outputDir))
+      if ((Split-Path $resolvedOutput -Parent) -eq (Resolve-Path $WORKSPACE).Path) {
+        Join-Path (Resolve-Path (Join-Path $WORKSPACE "..\..")).Path "runtime\comfyui-manager"
+      } else {
+        Split-Path $resolvedOutput -Parent
+      }
     } else {
       Join-Path (Resolve-Path (Join-Path $WORKSPACE "..\..")).Path "runtime\comfyui-manager"
     }

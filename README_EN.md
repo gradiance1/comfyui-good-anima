@@ -52,7 +52,7 @@ Anima is trained on the Danbooru tagging system — precise control requires usi
 | **Artist validation** | "Use rella style" → AI doesn't know if `@rella` is valid          | `--group artist --prefix "@rella"` returns confirmed artist     |
 | **Character lookup**  | "立华奏" in Danbooru is `kanade tachibana` — AI might guess wrong | `--group character --keyword "kanade tachibana"` hits precisely |
 | **Tag accuracy**      | "巫女服" is not a valid Danbooru tag                              | Decompose into `miko`, `hakama`, `wide sleeves` candidates      |
-| **Random selection**  | Can't randomly pick from valid tags                               | `--random 5 --for-prompt` provides usable random artists        |
+| **Random selection**  | Can't randomly pick from valid tags                               | `--random N --json` returns candidates; generation fill uses `--random 5 --for-prompt` |
 | **Batch queries**     | One query per tag, slow and inefficient                           | `--batch-file` handles 12-16 queries at once, 8 threads         |
 
 #### How it works
@@ -323,6 +323,7 @@ comfyui-good-anima/
 │   ├── SKILL.md
 │   └── workspace/
 │       ├── config.json
+│       ├── setup-workspace.ps1
 │       ├── data/                           # Workflow JSON definitions
 │       ├── cache_anima_outputs.js
 │       └── run_workflow_args.js
@@ -336,7 +337,9 @@ comfyui-good-anima/
 │
 └── danbooru-tags/                          # 🏷️ Tag retriever
     ├── SKILL.md
-    ├── bin/danbooru-tags.exe               # Rust CLI (pre-compiled)
+    ├── bin/
+    │   ├── danbooru-tags.exe               # Rust CLI (pre-compiled)
+    │   └── setup-dir.ps1
     ├── anima-1.0.csv                       # Main tag index
     ├── tags_index.sqlite                   # SQLite index (pre-built)
     ├── tags_index.json                     # JSON index (pre-built)

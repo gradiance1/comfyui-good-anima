@@ -5,7 +5,7 @@
       "name": "Local ComfyUI",
       "url": "http://127.0.0.1:8188",
       "enabled": true,
-      "output_dir": "./outputs"
+      "output_dir": "../../runtime/comfyui-manager/outputs"
     }
   ],
   "default_server": "local"

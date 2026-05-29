@@ -25,11 +25,21 @@
 
 - 5 个 SKILL.md 新增"默认职责"+"读取导航"表格+触发词提示
 
-### 新版优化 (comfyui-good-anima-new/)
+### 新版优化 (comfyui-good-anima-2/comfyui-good-anima/)
 
 - NEGATIVE_PROMPT 统一, `tag_pools.json` 数据同步
 - 默认参数补 cfg/sampler/scheduler, description 依赖补全, 输出字段表补 batch_size/rtx_vsr_quality
 - PowerShell 平铺回退, `cd`→`Push-Location`/`Pop-Location`, 跨 skill 路径修正
+
+## v0.3.1 — 运行时路径与 Codex CLI 验证修复 (2026-05-30)
+
+- `setup-dir.ps1` 目录发现不再过早依赖 `bin/danbooru-tags.exe`，先定位 skill 目录，再在执行前报告 CLI 缺失。
+- `setup-workspace.ps1` / `setup-dir.ps1` 增加整包嵌套安装发现路径。
+- `comfyui-manager` runtime 解析避免把 `workspace/outputs` 的父目录误当 runtime root。
+- `workspace/config.json` 默认输出目录改为 `runtime/comfyui-manager/outputs`，缓存读取优先 runtime outputs。
+- 修正 `danbooru-tags/SKILL.md` 代码围栏与 dot-source 调用说明。
+- 补回随机候选与随机图复核护栏。
+- 已覆盖到 Codex CLI 的 `C:/Users/ShiroEirin/.codex/skills` 并验证：5 个 SKILL frontmatter 正常、Markdown 围栏成对、`danbooru-tags.exe` 查询成功、`comfyui-skill info/deps check` 可读取默认 Anima workflow。
 
 ### 审查方法
 

@@ -33,7 +33,11 @@ function resolveRuntimeFromConfig() {
   const server = Array.isArray(config && config.servers) ? config.servers.find((item) => item && item.output_dir) : null;
   if (!server) return '';
   const outputDir = path.resolve(workspace, server.output_dir);
-  return path.basename(outputDir).toLowerCase() === 'outputs' ? path.dirname(outputDir) : '';
+  if (path.basename(outputDir).toLowerCase() !== 'outputs') return '';
+  if (path.dirname(outputDir) === path.resolve(workspace)) {
+    return path.resolve(workspace, '..', '..', 'runtime', 'comfyui-manager');
+  }
+  return path.dirname(outputDir);
 }
 
 function findExistingRuntimeRoot(start, runtimeName) {
@@ -117,13 +121,15 @@ function findOutputRoot() {
     ? config.servers.map((server) => server && server.output_dir).filter(Boolean)
     : [];
   const candidates = [
-    ...configuredOutputs.map((outputDir) => path.resolve(workspace, outputDir)),
     path.join(runtimeRoot, 'outputs'),
+    ...configuredOutputs.map((outputDir) => path.resolve(workspace, outputDir)),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
-  throw new Error('Cannot find ComfyUI output dir. Pass --output-root or set COMFYUI_OUTPUT_DIR.');
+  const runtimeOutputs = path.join(runtimeRoot, 'outputs');
+  mkdirp(runtimeOutputs);
+  return runtimeOutputs;
 }
 
 function outputPath(outputRoot, preview) {

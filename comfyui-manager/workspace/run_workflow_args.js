@@ -45,7 +45,11 @@ function resolveRuntimeFromConfig() {
     const server = Array.isArray(config.servers) ? config.servers.find((item) => item && item.output_dir) : null;
     if (!server) return '';
     const outputDir = path.resolve(workspace, server.output_dir);
-    return path.basename(outputDir).toLowerCase() === 'outputs' ? path.dirname(outputDir) : '';
+    if (path.basename(outputDir).toLowerCase() !== 'outputs') return '';
+    if (path.dirname(outputDir) === path.resolve(workspace)) {
+      return path.resolve(workspace, '..', '..', 'runtime', 'comfyui-manager');
+    }
+    return path.dirname(outputDir);
   } catch {
     return '';
   }

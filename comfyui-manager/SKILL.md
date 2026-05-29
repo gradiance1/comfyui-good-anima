@@ -38,7 +38,7 @@ description: Manage ComfyUI server, models, workflows, LoRAs, queues, dependenci
 6. 首次运行从当前已加载 skill 的根目录（即 `$env:SKILL_RUNTIME_ROOT` 或 `skills/` 容器目录）下查找 `comfyui-manager/workspace`，找到后 `cd` 进入。
 
 找到目录后执行路径发现脚本：
-执行 `.\workspace\setup-workspace.ps1`
+执行 `. .\workspace\setup-workspace.ps1`。必须 dot-source 调用，让 `$WORKSPACE` 和 `$RUNTIME` 留在当前会话。
 
 默认 Anima 生图工作流：
 
