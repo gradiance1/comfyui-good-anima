@@ -1,6 +1,6 @@
 ---
 name: anima-composition-director
-description: Convert Anima image-generation intent, tags, references, or rough prompts into concrete composition decisions. Use with comfyui-animatool when the task needs better camera framing, aspect ratio, subject placement, lighting, depth of field, face readability, or reference-image composition transfer before assembling Anima prompts.
+description: Convert Anima image-generation intent, tags, references, or rough prompts into concrete composition decisions. Use with comfyui-animatool when the task needs better camera framing, aspect ratio, subject placement, lighting, value contrast, depth of field, face readability, emotional staging, storytelling composition, symbolic visual metaphor, or reference-image composition transfer before assembling Anima prompts.
 ---
 
 # Anima Composition Director
@@ -76,7 +76,7 @@ Mode rules:
 每行选一个值，除非用户明确需要特殊镜头：
 
 - Distance: `close-up`, `upper body`, `cowboy shot`, `full body`, `wide shot`.
-- Angle: `eye-level`, `low front angle`, `high angle`, `side view`, `three-quarter view`, `over-shoulder view`, `top-down view`, `pov`, `first-person view`.
+- Angle: `eye-level`, `low front angle`, `high angle`, `side view`, `three-quarter view`, `over-shoulder view`, `top-down view`, `bird's-eye view`, `aerial view`, `pov`, `first-person view`.
 - Lens feel: `normal perspective` by default; use `wide-angle` only for strong space or action. Avoid fisheye unless requested.
 - Focus technique: `shallow depth of field`, `deep focus`, `rack focus look`, or `soft background blur`.
 - Face rule: if identity matters, include `Keep the face sharp and readable.`
@@ -85,6 +85,8 @@ Avoid contradictions: no `close-up` with `full body`; no `from above` with `from
 
 - One frame gets one primary camera idea; do not stack `low angle`, `top-down`, and `over-shoulder` together.
 - Convert movement terms into static layout: `tracking shot` means subject offset plus background leading lines; `push-in` means closer framing and stronger face emphasis; `orbit` means three-quarter view with curved background cues.
+- For `top-down`, `bird's-eye view`, or `aerial view`, show readable ground layout with roads, rooftops, fields, shadows, crowds, or one landmark.
+- For foreshortened POV or figure-emphasis framing, use foreground limb/prop/fabric, believable joints, silhouette, crop, or rim light while preserving identity anchors.
 - For action, describe the peak pose and motion direction, not a sequence of events.
 
 ## Composition patterns
@@ -105,6 +107,9 @@ Scene coherence:
 - Pick one story anchor: character action, prop interaction, weather effect, or location function.
 - Pose, expression, outfit, prop, weather, and background must support that anchor; remove details that tell a different story.
 - If the environment matters, show how the character uses or reacts to it, not just where they stand.
+- Emotion must become visible staging: expression, gaze, hand pose, body direction, distance, occlusion, or light placement.
+- Symbolism must become one visible motif, prop, flower, shadow shape, framing device, or background echo; do not explain the metaphor.
+- For story contrast, use visible juxtaposition or purposeful negative space; keep it guided by gaze, light, or background shape.
 
 Framing safety:
 
@@ -119,6 +124,7 @@ Visual-design rules:
 - Establish one focal point first; secondary props and background must support it.
 - Keep face and hands readable; move overlaps away from them.
 - Put the clearest silhouette against the simplest background area.
+- Standing or walking subjects need a ground contact cue: feet on floor, road, grass, contact shadow, cast shadow, or footprint.
 - When clothing is complex, simplify the background and keep the silhouette readable.
 - Use clear value separation, controlled edges, and one dominant color palette plus one accent color.
 
@@ -130,6 +136,8 @@ Define light as visible geometry, not abstract mood:
 - Rim light only when it helps silhouette separation.
 - Fill light only when shadows hide the face or outfit identity.
 - Background light should not overpower the face.
+- For dramatic contrast, choose one readable value plan: face-lit dark background, split light, backlit silhouette, or rim-only separation.
+- If shadows cross the face, keep at least one eye readable unless concealment is requested.
 - Use background blur when scene detail competes with identity.
 - For 2:1 or wide shots, explicitly protect face readability.
 - Avoid stacking many post-process words; pick one: bloom, vignette, lens flare, film grain, or chromatic aberration.
@@ -187,7 +195,8 @@ Rules for `nltags_sentences`:
 - 8–18 English words per sentence.
 - One sentence controls one thing: pose, camera, placement, lighting, depth, or face quality.
 - Use at most one camera term sentence and at most one focus/depth sentence.
-- No metaphors, backstory, destiny, personality analysis, or vague mood stacking.
+- No explanatory metaphors, backstory, destiny, personality analysis, or vague mood stacking.
+- Symbolic requests are allowed only as visible motif, staging, or light contrast, not as explanatory prose.
 - No video-only instructions such as `the camera pans`, `the camera tracks`, or `then she turns`.
 - Prefer concrete verbs: `place`, `use`, `keep`, `frame`, `light`, `blur`.
 
@@ -198,5 +207,6 @@ Before returning the plan:
 - Canvas matches the final prompt idea.
 - Subject size matches camera distance.
 - Face readability is protected when identity matters.
+- Standing subjects do not float; aerial scenes have ground layout and scale cues.
 - Background detail does not fight the subject.
 - `nltags_sentences` are short layout controls, not prose.

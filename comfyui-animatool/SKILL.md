@@ -43,7 +43,7 @@ description: Use for Anima / ComfyUI-AnimaTool image generation. Route Anima gen
 
 在组装参数前，必须先用 `anima-composition-director` 的方法形成简短视觉简报；不要把简报原样输出给用户，也不要写进 `prompt_hint`。
 
-当需求涉及参考图构图、复杂场景、多人互动、特殊镜头、高分辨率、强光影，或模型明显缺少画面决策时，显式使用 `anima-composition-director`。本 skill 只接收它的输出：`canvas`、`camera`、`composition`、`lighting`、`focus`、`nltags_sentences`，再与 Danbooru hard anchors 组装 prompt。
+当需求涉及参考图构图、复杂场景、多人互动、特殊镜头、高分辨率、强光影、明暗对比、人物情感、故事感、象征构图，或模型明显缺少画面决策时，显式使用 `anima-composition-director`。本 skill 只接收它的输出：`canvas`、`camera`、`composition`、`lighting`、`focus`、`nltags_sentences`，再与 Danbooru hard anchors 组装 prompt。
 
 视觉简报只用于决策：`character / series / artist / appearance` 锁定身份和画风；`tags` 放已确认锚点；`environment` 放短场景/光影 tag；`nltags` 使用 `anima-composition-director` 产出的短英文画面控制句。
 
