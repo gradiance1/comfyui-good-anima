@@ -133,7 +133,7 @@
       "field": "artist_chain",
       "required": false,
       "type": "string",
-      "description": "Optional artist chain for Anima Artist Mixer. Comma or newline separated; supports CLIP weighting syntax like wlop, (sakimichan:1.2), (krenz:0.7). Use only when user explicitly requests artist-chain mixing."
+      "description": "Optional artist chain for Anima Artist Mixer. Comma or newline separated artist names; do not include @. Supports explicit weights such as (wlop:1.2) and v24 injection weights such as ::wlop::1.2. Use only when user explicitly requests artist-chain mixing."
     },
     "artist_mixer_combine_mode": {
       "node_id": "67",
@@ -154,7 +154,7 @@
       "field": "strength",
       "required": false,
       "type": "float",
-      "description": "Overall artist-chain contribution. Default 0.7 follows recommended 0.6-0.8 range."
+      "description": "Overall artist-chain contribution. Official recommended default is 1.0; use the workflow default unless the user explicitly asks to tune Artist Mixer strength."
     },
     "artist_mixer_enabled": {
       "node_id": "67",
@@ -168,7 +168,7 @@
       "field": "apply_to_uncond",
       "required": false,
       "type": "bool",
-      "description": "Apply artist mixer to uncond rows. Default false and generally not recommended because it can break CFG behavior."
+      "description": "Apply artist mixer to uncond rows. Default false and not recommended because it can break CFG behavior."
     },
     "artist_mixer_start_block": {
       "node_id": "66",

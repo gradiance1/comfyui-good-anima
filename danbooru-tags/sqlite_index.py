@@ -121,9 +121,9 @@ def init_db(rows_by_category: dict[str, list[list[Any]]]) -> None:
 def query_categories(group_name: str, category: str, has_query: bool) -> list[str]:
     """Return source categories without loading JSON."""
     if group_name == "series":
-        return ["characters", "series"] if has_query else ["characters"]
+        return ["series"]
     if group_name == "characters":
-        return ["series", "characters"] if has_query else ["series"]
+        return ["characters"]
     if category:
         return [category]
     return BASE_CATEGORIES[:]

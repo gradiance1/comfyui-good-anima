@@ -1,57 +1,15 @@
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { readJsonOrNull, resolveRuntimeRoot, stripBom } = require('./runtime_utils');
 
 const workspace = __dirname;
-const runtimeRoot = resolveRuntimeRoot();
+const runtimeRoot = resolveRuntimeRoot(workspace);
 const defaultWorkflowId = 'local/anima-txt2img-aesthetic-lora';
 const workflowId = argValue('--workflow-id', defaultWorkflowId);
 const workflowName = workflowNameFromId(workflowId);
 const historyDir = path.join(runtimeRoot, 'history', workflowName);
 const manifestPath = argValue('--manifest');
-
-function resolveRuntimeRoot() {
-  if (process.env.COMFYUI_MANAGER_RUNTIME_DIR) {
-    return path.resolve(process.env.COMFYUI_MANAGER_RUNTIME_DIR);
-  }
-  const runtimeRoot = process.env.SKILL_RUNTIME_ROOT;
-  if (runtimeRoot) {
-    return path.resolve(runtimeRoot, 'comfyui-manager');
-  }
-  const configRuntime = resolveRuntimeFromConfig();
-  if (configRuntime) {
-    return configRuntime;
-  }
-  const existingRuntime = findExistingRuntimeRoot(workspace, 'comfyui-manager');
-  if (existingRuntime) {
-    return existingRuntime;
-  }
-  return path.resolve(workspace, '..', '..', 'runtime', 'comfyui-manager');
-}
-
-function resolveRuntimeFromConfig() {
-  const config = readJson(path.join(workspace, 'config.json'));
-  const server = Array.isArray(config && config.servers) ? config.servers.find((item) => item && item.output_dir) : null;
-  if (!server) return '';
-  const outputDir = path.resolve(workspace, server.output_dir);
-  if (path.basename(outputDir).toLowerCase() !== 'outputs') return '';
-  if (path.dirname(outputDir) === path.resolve(workspace)) {
-    return path.resolve(workspace, '..', '..', 'runtime', 'comfyui-manager');
-  }
-  return path.dirname(outputDir);
-}
-
-function findExistingRuntimeRoot(start, runtimeName) {
-  let cursor = path.resolve(start);
-  while (cursor) {
-    const root = path.join(cursor, 'runtime');
-    if (fs.existsSync(root)) return path.join(root, runtimeName);
-    const parent = path.dirname(cursor);
-    if (parent === cursor) break;
-    cursor = parent;
-  }
-  return '';
-}
 
 function argValue(name, fallback = '') {
   const index = process.argv.indexOf(name);
@@ -85,15 +43,64 @@ function mkdirp(dir) {
 }
 
 function readJson(file) {
+  return readJsonOrNull(file);
+}
+
+function serverOutputRoots() {
+  const roots = [];
+  const configured = findOutputRoot();
+  if (configured) roots.push(configured);
+  const mainPy = comfyuiMainPathFromStatus();
+  if (mainPy) {
+    const comfyuiRoot = path.dirname(mainPy);
+    const outputArg = comfyuiOutputArgFromStatus();
+    if (outputArg) {
+      roots.push(path.resolve(comfyuiRoot, outputArg));
+    }
+    roots.push(path.join(comfyuiRoot, 'output'));
+  }
+  return [...new Set(roots.map((item) => path.resolve(item)))];
+}
+
+function serverStatus() {
   try {
-    return JSON.parse(stripBom(fs.readFileSync(file, 'utf8')));
+    const raw = execFileSync('comfyui-skill', ['--json', '--dir', workspace, 'server', 'status'], {
+      cwd: workspace,
+      encoding: 'utf8',
+      env: process.env,
+      timeout: 120000,
+    });
+    return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 
-function stripBom(text) {
-  return text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+function promptStatus(promptId) {
+  const raw = execFileSync('comfyui-skill', ['--json', '--dir', workspace, 'status', promptId], {
+    cwd: workspace,
+    encoding: 'utf8',
+    env: process.env,
+    timeout: 120000,
+  });
+  return JSON.parse(stripBom(raw));
+}
+
+function comfyuiArgv() {
+  const status = serverStatus();
+  return status && status.data && status.data.system && Array.isArray(status.data.system.argv)
+    ? status.data.system.argv
+    : [];
+}
+
+function comfyuiMainPathFromStatus() {
+  return comfyuiArgv().find((item) => /(?:^|[\\/])main\.py$/i.test(String(item || ''))) || '';
+}
+
+function comfyuiOutputArgFromStatus() {
+  const argv = comfyuiArgv();
+  const index = argv.findIndex((item) => ['--output-directory', '--output_dir', '--output-dir'].includes(String(item || '')));
+  return index >= 0 && argv[index + 1] ? String(argv[index + 1]) : '';
 }
 
 function writeJson(file, value) {
@@ -142,18 +149,8 @@ function outputPath(outputRoot, preview) {
   return path.join(outputRoot, subfolder, preview.filename);
 }
 
-function normalizeStatus(status) {
+function normalizeCompletedStatus(status) {
   return ['success', 'completed'].includes(String(status || '').toLowerCase()) ? 'completed' : String(status || '');
-}
-
-function promptStatus(promptId) {
-  const raw = execFileSync('comfyui-skill', ['--json', '--dir', workspace, 'status', promptId], {
-    cwd: workspace,
-    encoding: 'utf8',
-    env: process.env,
-    timeout: 120000,
-  });
-  return JSON.parse(stripBom(raw));
 }
 
 function previewFromLocalOutput(output) {
@@ -179,7 +176,7 @@ function jobsFromLocalHistory() {
         : null;
       return {
         id: (localHistory && (localHistory.prompt_id || localHistory.run_id)) || path.basename(name, '.json'),
-        status: normalizeStatus(localHistory && localHistory.status),
+        status: normalizeCompletedStatus(localHistory && localHistory.status),
         preview_output: previewFromLocalOutput(output),
         local_history_path: localHistoryPath,
       };
@@ -214,7 +211,7 @@ function jobsFromManifest(file) {
       return [{
         id: promptId,
         prompt_id: promptId,
-        status: normalizeStatus(status && status.status),
+        status: normalizeCompletedStatus(status && status.status),
         preview_output: null,
         reason: 'missing image outputs',
       }];
@@ -222,7 +219,7 @@ function jobsFromManifest(file) {
     return outputs.map((output, index) => ({
       id: outputs.length === 1 ? promptId : `${promptId}-${index + 1}`,
       prompt_id: promptId,
-      status: normalizeStatus(status && status.status),
+      status: normalizeCompletedStatus(status && status.status),
       preview_output: previewFromLocalOutput(output),
       args_file: item.args_file || '',
       workflow_id: item.workflow_id || workflowId,
@@ -236,9 +233,7 @@ function cacheOne(job, outputRoot) {
     return { id: job.id, cached: false, reason: 'missing preview_output' };
   }
 
-  const source = preview.local_path && fs.existsSync(preview.local_path)
-    ? path.resolve(preview.local_path)
-    : outputPath(outputRoot, preview);
+  const source = resolveSourcePath(outputRoot, preview);
   if (!fs.existsSync(source)) {
     return { id: job.id, cached: false, reason: `source not found: ${source}` };
   }
@@ -278,6 +273,16 @@ function cacheOne(job, outputRoot) {
   return { id: job.id, cached: true, cache_local_path: imageCachePath, args_path: argsPath, manifest_path: manifestPath };
 }
 
+function resolveSourcePath(outputRoot, preview) {
+  const candidates = [];
+  if (preview.local_path) candidates.push(path.resolve(preview.local_path));
+  candidates.push(outputPath(outputRoot, preview));
+  for (const root of serverOutputRoots()) {
+    candidates.push(outputPath(root, preview));
+  }
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
+}
+
 function main() {
   const limit = Number.parseInt(argValue('--limit', '50'), 10) || 50;
   const outputRoot = findOutputRoot();
@@ -291,7 +296,7 @@ function main() {
     .slice(0, limit);
 
   if (!manifestPath && jobs.length === 0) {
-    const raw = execFileSync('comfyui-skill', ['history', 'list', workflowId, '--server', '--limit', String(limit)], {
+    const raw = execFileSync('comfyui-skill', ['--json', '--dir', workspace, 'history', 'list', workflowId, '--server', '--limit', String(limit)], {
       cwd: workspace,
       encoding: 'utf8',
       env: process.env,

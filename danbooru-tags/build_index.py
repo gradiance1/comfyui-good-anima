@@ -8,8 +8,8 @@
 分类码：
 - 0: general
 - 1: artists（CSV 原始标签已带 @，必须保留）
-- 3: characters
-- 4: series
+- 3: series / copyright
+- 4: characters
 - 5: meta
 """
 
@@ -32,8 +32,8 @@ OUTPUT_PATH = HERE / "tags_index.json"
 CATEGORY_MAP = {
     "0": "general",
     "1": "artists",
-    "3": "characters",
-    "4": "series",
+    "3": "series",
+    "4": "characters",
     "5": "meta",
 }
 

@@ -1,19 +1,94 @@
 # ComfyUI Good Anima 🎨
 
-> A collection of AI Agent Skills for ComfyUI + Anima anime-style image generation.
+> A collection of AI Agent Skills for ComfyUI + Anima anime-style image generation. The current mainline uses a thin master, intent expansion, and progressive disclosure: vague requests are first turned into clear generation concepts, while routing facts and execution details are loaded on demand.
 
 ---
 
-## 📋 Overview
+🌐 **[中文版](./README.md)**
 
-**ComfyUI Good Anima** is a set of AI Agent Skills designed for the **Anima anime-style image generation model** with **ComfyUI**. These structured Skill files guide AI coding assistants through the complete image generation pipeline:
+---
 
-1. 🎬 **Composition Planning** — Choose canvas, camera, composition, and lighting based on semantic description
-2. 🔍 **Tag Retrieval** — Search and validate character, artist, clothing anchors via the Danbooru tag index
-3. 🔧 **Prompt Assembly** — Build compliant positive/negative prompts following Anima's official spec
-4. ⚡ **Workflow Execution** — Invoke ComfyUI workflows for generation, upscaling, and caching
+## Mainline Features
 
-### Compatible AI Coding Assistants
+- **Thin Master** (`comfyui-anima-master`): A routing and must-keep-facts layer. It preserves the user intent, decides which skill owns the next step, and avoids loading long composition or execution details until needed.
+- **Shared Conventions** (`shared/`): Cross-skill repeated content (quality prefixes, step rules, artist formats, etc.) managed centrally — one change applies globally.
+- **Intent Expansion Layer**: Vague requests are decomposed into subject, scene container, relationship, and style anchors, then enriched with the physical context, action beat, and visible narrative anchor needed for a coherent image. This is a thinking path, not a hard checklist.
+- **Three-Tier Progressive Disclosure**: Master (routing + facts) → Skill (domain boundaries) → Reference (execution facts / failure guardrails), loaded on demand, each tier exposing only essential information.
+- **Failure Guardrails Instead of Art Lessons**: Composition references prevent Anima-specific drift such as black faces under backlight, subject shrinkage, attribute swaps, and workflow misuse; they are not general art textbooks.
+- **Self-Contained Random Generation**: `anima-random-gen` with all rules inlined, zero external references.
+- **Updated Model Info**: Synchronized with official [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) URLs, LoRA-dependent quality prefixes, and sampler configurations.
+
+---
+
+## Architecture
+
+Based on the Perplexity three-tier context cost model:
+
+| Tier             | Component                            | Role                                                 | Load Timing      |
+| ---------------- | ------------------------------------ | ---------------------------------------------------- | ---------------- |
+| **L1 — Index**   | Each Skill's `description`           | Routing trigger (~100 token/Skill)                   | Every session    |
+| **L2 — Load**    | `SKILL.md` body                      | Core decisions & built-in capabilities (~2500 token) | On Skill trigger |
+| **L3 — Runtime** | `references/` + `scripts/` + `data/` | Detailed rules & execution tools                     | On-demand        |
+
+---
+
+## Skill Structure
+
+```
+comfyui-good-anima/
+├── README.md
+├── shared/
+│   ├── conventions.md          # Shared facts: quality prefixes, samplers, canvas, nodes
+│   └── legacy/gotchas.md       # Legacy pitfalls, maintenance review only
+├── comfyui-anima-master/
+│   └── SKILL.md                # Unified entry — routing + must-keep facts
+├── comfyui-animatool/
+│   ├── SKILL.md                # Prompt assembly, conflict checks, args preparation
+│   └── references/
+│       ├── prompt-assembly.md  # Tag ordering, weight rules, slot conflicts
+│       ├── chinese-visual-brief.md # Limited Chinese intent expansion
+│       └── batch-strategy.md   # Multi-image batch generation strategies
+├── anima-composition-director/
+│   ├── SKILL.md                # Composition boundaries — canvas/camera/light/readability
+│   └── references/
+│       ├── intent-expansion-patterns.md # Intent expansion: scene container → physical context → story anchor
+│       ├── canvas-layout.md    # Canvas, camera, layout, light guardrails
+│       ├── scene-emotion.md    # Multi-character, environment, story controls
+│       ├── composition-case-studies/  # Failure guardrails by symptom
+│       │   ├── _index.md               # Failure routing, not an art textbook
+│       │   ├── composition-errors.md   # Common failure → cause → fix
+│       │   ├── composition-judgment.md # Post-generation self-check
+│       │   ├── single-character.md     # Subject scale and background risk
+│       │   ├── character-interaction.md# Multi-character attribution risk
+│       │   ├── perspective-camera.md   # Special camera failure protection
+│       │   ├── lighting-and-depth.md   # Fill light, bokeh, value separation
+│       │   ├── environment-storytelling.md # Scale, grounding, story-prop restraint
+│       │   ├── dynamic-action.md       # Action direction, hands, props readability
+│       │   ├── color-mood.md           # Color separation and subject readability
+│       │   ├── form-proportion.md      # Proportion, body-size contrast, clothing swallowing structure
+│       │   └── clothing-silhouette-reference.md # Clothing silhouette and material expression
+│       └── adult-runtime/              # Adult/special-topic index; explicit requests only
+│           └── scene-risk.md           # Adult scene privacy/public-risk reference
+├── comfyui-manager/
+│   ├── SKILL.md                # ComfyUI execution and operations
+│   ├── workspace/              # Workflow JSON + execution scripts
+│   └── references/
+│       └── operations.md       # Full CLI command reference & troubleshooting
+├── danbooru-tags/
+│   ├── SKILL.md                # Tag retrieval & validation
+│   ├── bin/danbooru-tags.exe   # Rust CLI
+│   ├── anima-1.0.csv           # Anima tag index
+│   ├── tags_index.sqlite       # SQLite index
+│   └── references/
+│       └── query-patterns.md   # Query strategies & batch patterns
+└── anima-random-gen/
+    ├── SKILL.md                # Random semantic generation
+    └── random_generator.py     # Random engine
+```
+
+---
+
+## Compatible AI Assistants
 
 These Skills are designed for **AI Coding Agents** that can execute shell commands:
 
@@ -28,34 +103,25 @@ These Skills are designed for **AI Coding Agents** that can execute shell comman
 
 > 💡 **Recommended: [Snow](https://snowcli.com/docs) — the best AI coding agent experience in China**, with native Skills system support, ComfyUI integration, and Chinese language optimization.
 
-### Included Skills
+---
 
-```
-comfyui-good-anima/
-├── anima-composition-director/    # Composition planning — canvas/camera/composition/lighting
-├── anima-random-gen/              # Random generation — random artists/tags/parameters
-├── comfyui-animatool/            # Generation entry — prompt assembly & parameter strategy
-├── comfyui-manager/              # ComfyUI manager — workflow execution & model management
-└── danbooru-tags/                # 🔍 Tag retriever — see details below
-```
-
-### 🔍 What is danbooru-tags and why is it needed?
+## 🔍 What is danbooru-tags and why is it needed?
 
 **danbooru-tags** is the core retrieval infrastructure of this project. It's a Rust CLI tool that performs high-speed searches and anchor validation against the **official Anima tag index (anima-1.0.csv)**.
 
-#### Problems it solves
+### Problems it solves
 
 Anima is trained on the Danbooru tagging system — precise control requires using **valid Danbooru tags**. With millions of tags, manual memorization is impossible. danbooru-tags solves:
 
-| Problem               | Without danbooru-tags                                             | With danbooru-tags                                              |
-| --------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- |
-| **Artist validation** | "Use rella style" → AI doesn't know if `@rella` is valid          | `--group artist --prefix "@rella"` returns confirmed artist     |
-| **Character lookup**  | "立华奏" in Danbooru is `kanade tachibana` — AI might guess wrong | `--group character --keyword "kanade tachibana"` hits precisely |
-| **Tag accuracy**      | "巫女服" is not a valid Danbooru tag                              | Decompose into `miko`, `hakama`, `wide sleeves` candidates      |
+| Problem               | Without danbooru-tags                                             | With danbooru-tags                                                                     |
+| --------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Artist validation** | "Use rella style" → AI doesn't know if `@rella` is valid          | `--group artist --prefix "@rella"` returns confirmed artist                            |
+| **Character lookup**  | "立华奏" in Danbooru is `kanade tachibana` — AI might guess wrong | `--group character --keyword "kanade tachibana"` hits precisely                        |
+| **Tag accuracy**      | "巫女服" is not a valid Danbooru tag                              | Decompose into `miko`, `hakama`, `wide sleeves` candidates                             |
 | **Random selection**  | Can't randomly pick from valid tags                               | `--random N --json` returns candidates; generation fill uses `--random 5 --for-prompt` |
-| **Batch queries**     | One query per tag, slow and inefficient                           | `--batch-stdin` handles 12-16 queries at once, 8 threads        |
+| **Batch queries**     | One query per tag, slow and inefficient                           | `--batch-file` handles 12-16 queries at once, 8 threads                                |
 
-#### How it works
+### How it works
 
 ```
 anima-1.0.csv (official index)
@@ -66,11 +132,11 @@ tags_index.sqlite (fast local index)
        ↓
  bin/danbooru-tags.exe (Rust CLI)
        ↓
- AI agent queries via --group / --random / --batch-stdin
+ AI agent queries via --group / --random / --batch-file
  obtains confirmed_tags / candidate_tags for prompt assembly
 ```
 
-#### Is it essential?
+### Is it essential?
 
 **Yes.** Without danbooru-tags, the AI agent cannot verify artist names, check character tag spelling, or ensure randomly selected tags are within Anima's comprehension. The entire generation pipeline becomes "blind prompting, gambling on outputs" — losing all precision control.
 
@@ -137,32 +203,57 @@ pip install comfyui-skill-cli
 
 Place the following model files in ComfyUI's `models/` directory:
 
-### Checkpoint (UNet)
+### Base Model (UNet)
 
-| File                          | Location                                            | Source                                                                  |
-| ----------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------- |
-| `anima-base-v1.0.safetensors` | `models/checkpoints/` or `models/diffusion_models/` | [HuggingFace - Anima](https://huggingface.co/KBlueLeaf/anima-base-v1.0) |
+| File                          | Location                           | Size     | Source                                                                  |
+| ----------------------------- | ---------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `anima-base-v1.0.safetensors` | `ComfyUI/models/diffusion_models/` | ~12.2 GB | [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) |
 
-### CLIP (Text Encoder)
+### CLIP (Text Encoder) & VAE
 
-| File                          | Location                                  |
-| ----------------------------- | ----------------------------------------- |
-| `qwen_3_06b_base.safetensors` | `models/clip/` or `models/text_encoders/` |
+| File                          | Location                        |
+| ----------------------------- | ------------------------------- |
+| `qwen_3_06b_base.safetensors` | `ComfyUI/models/text_encoders/` |
+| `qwen_image_vae.safetensors`  | `ComfyUI/models/vae/`           |
 
-### VAE
+### LoRAs (Dual Aesthetic Enhancement)
 
-| File                         | Location      |
-| ---------------------------- | ------------- |
-| `qwen_image_vae.safetensors` | `models/vae/` |
+| File                                        | Location                | Purpose                                                                                                                                                                                                                                                             |
+| ------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anima-highres-aesthetic-boost.safetensors` | `ComfyUI/models/loras/` | Official LoRA — primarily for stable high-resolution (1536-2048px) generation, aesthetic boost is subtle. [CivitAI](https://civitai.red/models/2540444/anima-highresaesthetic-boost)                                                                                |
+| `anima-base-1-masterpiece-v51.safetensors`  | `ComfyUI/models/loras/` | Aesthetic quality modifier, trigger words: `masterpiece` `very aesthetic`. Author's recommended structure: `masterpiece, best quality, very aesthetic`. [CivitAI](https://civitai.red/models/929497/aesthetic-quality-modifiers-masterpiece?modelVersionId=2961717) |
 
-### LoRAs
+> **Model Source**: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) — jointly released by CircleStone Labs and Comfy Org. Training data cut-off: September 2025.
 
-| File                                        | Location        | Source                                                                                                      |
-| ------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------- |
-| `anima-highres-aesthetic-boost.safetensors` | `models/loras/` | [CivitAI](https://civitai.red/models/2540444/anima-highresaesthetic-boost)                                  |
-| `anima-base-1-masterpiece-v51.safetensors`  | `models/loras/` | [CivitAI](https://civitai.red/models/929497/aesthetic-quality-modifiers-masterpiece?modelVersionId=2961717) |
+### Quality Prefix
 
-> The default workflow uses both LoRAs. If file paths differ from workflow JSON, modify the JSON and re-import.
+The default workflow uses dual aesthetic LoRAs. The `masterpiece-v51` LoRA is trained on PonyV7 aesthetic scoring and **must** use the following prefix:
+
+```text
+masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025, nsfw
+```
+
+**Alternative** — bare model (no LoRA, comparison testing only):
+
+```text
+masterpiece, best quality, score_7, safe
+```
+
+> ⚠️ The quality prefix is bound to the LoRA stack. Substituting `score_7` into the LoRA workflow will degrade `masterpiece-v51` effectiveness. The HuggingFace page describes the bare model; this project uses the enhanced workflow.
+
+### Sampler & Scheduler
+
+Default workflows depend on FLSamplerV4 + RES4LYF custom nodes:
+
+| Component     | Default                  | Dependency         |
+| ------------- | ------------------------ | ------------------ |
+| Sampler       | `dpmpp_2m_sde_gpu`       | FLSamplerV4 node   |
+| Scheduler     | `beta57`                 | RES4LYF node       |
+| Steps         | 30 (40 for high quality) | —                  |
+| CFG           | 4.5 (range 4–5)          | —                  |
+| SageAttention | Enabled                  | AnimaBoosterLoader |
+
+If RES4LYF is unavailable, fall back to `beta` or `ddim_uniform`. The bare model uses `er_sde` + `simple` (per official documentation).
 
 ---
 
@@ -172,21 +263,15 @@ Install the following nodes in ComfyUI's `custom_nodes/` directory:
 
 | Node                        | Purpose                                                                 | Install Location                                                                                |
 | --------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **AnimaBoosterLoader**      | Anima model loader with SageAttention                                   | [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)                 |
+| **AnimaBoosterLoader**      | Anima model loader + SageAttention (auto-fallback) + JIT compilation    | [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)                 |
 | **FLS_SamplerV4**           | Foveated Latent Sampling for enhanced detail                            | [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler) |
 | **AnimaTeaCache**           | TeaCache acceleration                                                   | [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)                           |
 | **AnimaArtistPack**         | Multi-artist fusion (artist mixer only)                                 | Included in ANIMA_BOOSTER                                                                       |
 | **AnimaArtistCrossAttn**    | Cross-attention artist mixing (artist mixer only)                       | Included in ANIMA_BOOSTER                                                                       |
 | **RES4LYF**                 | ⚠️ **Required — provides `beta57` scheduler, used by default workflow** | [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF)                       |
-| **RTXVideoSuperResolution** | NVIDIA RTX VSR 2x upscaling (NVIDIA GPUs only)                          | [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)     |
+| **RTXVideoSuperResolution** | NVIDIA RTX VSR 2× upscaling (NVIDIA GPUs only)                          | [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)     |
 
-### Installation Methods
-
-**Method 1: Via ComfyUI Manager (recommended)**
-
-Search for: `"ANIMA BOOSTER" / "FLSampler" / "TeaCache" / "RES4LYF" / "RTX"`
-
-**Method 2: Manual clone**
+**Quick Install (PowerShell):**
 
 ```powershell
 cd ComfyUI/custom_nodes
@@ -197,71 +282,97 @@ git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 git clone https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI.git
 ```
 
-> After installation, restart ComfyUI and verify with `comfyui-skill deps check local/anima-txt2img-aesthetic-lora`.
+After installation, restart ComfyUI and verify: `comfyui-skill deps check local/anima-txt2img-aesthetic-lora`
 
 ---
 
 ## ⚙️ Quick Start
 
-### 1. Install ComfyUI and comfyui-skill CLI
+### 1. Install models
+
+Download model files according to the tables above and place them in the correct ComfyUI `models/` directories.
+
+### 2. Install custom nodes
+
+Via ComfyUI Manager or manual clone as shown above.
+
+### 3. Load the skill pack
+
+Place the entire `comfyui-good-anima/` directory into your AI assistant's Skills directory.
+
+### 3b. Set environment variable (recommended)
 
 ```powershell
-git clone https://github.com/comfyanonymous/ComfyUI
-cd ComfyUI
-pip install comfyui-skill-cli
+$env:DANBOORU_TAGS_DIR = "<your danbooru-tags skill directory absolute path>"
 ```
 
-### 2. Place models and nodes
+> 💡 **Why?** `anima-random-gen` and `comfyui-animatool` auto-search for `danbooru-tags.exe` on every call. If your machine still keeps `legacy/v1` or experimental copies, the search may hit an old CLI. Setting this variable pins the current mainline `danbooru-tags` path — no more recursive guessing.
 
-Place model files and clone custom nodes per the tables above, then start ComfyUI.
-
-### 3. Import workflow
+**Permanent (PowerShell):**
 
 ```powershell
-cd comfyui-good-anima/comfyui-manager/workspace
-comfyui-skill workflow import ../data/anima-txt2img-aesthetic-lora.json --check-deps --json
+[System.Environment]::SetEnvironmentVariable(
+    "DANBOORU_TAGS_DIR",
+    "H:\github\comfyui-good-anima\danbooru-tags",
+    "User"
+)
 ```
 
-### 4. Generate an image
+Replace the path with your local `comfyui-good-anima/danbooru-tags` absolute path.
 
-```powershell
-cd comfyui-good-anima/comfyui-manager/workspace
-node ./run_workflow_args.js run local/anima-txt2img-aesthetic-lora ./args_anima.json
+### 4. Start a conversation
+
+Simply describe what you want to generate:
+
+```
+"Generate Kanade Tachibana from Angel Beats!"   → master built-in standard generation
+"Give me something random"                       → routed to anima-random-gen
+"Fuse wlop and sakimichan art styles"            → master built-in artist fusion
+"Generate 10 different poses"                     → master built-in batch generation
 ```
 
-`run_workflow_args.js` passes JSON args safely through argv, avoiding PowerShell inline `--args` quoting issues with quotes, backslashes, and newlines. Runtime history, cache, and temporary outputs are written to the resolved runtime directory by default. Set `COMFYUI_MANAGER_RUNTIME_DIR` or `SKILL_RUNTIME_ROOT` to override it.
+`comfyui-anima-master` detects intent and dispatches to the appropriate skill. Clear requests stay lightweight; vague or composition-heavy requests load the intent/composition layer before prompt assembly.
 
 ---
 
-## 🧠 Workflow
+## 🧠 Generation Flow
 
 ```
-User request → anima-composition-director (composition plan)
-             → danbooru-tags (tag validation)
-             → comfyui-animatool (prompt assembly)
-             → comfyui-manager (workflow execution)
-```
-
-### Random / Roll Generation
-
-```
-User request → anima-composition-director (visual brief)
-             → danbooru-tags --random (random candidates)
-             → anima-random-gen (parameter generation)
-             → comfyui-manager (execution)
+User Intent
+    │
+    ▼
+comfyui-anima-master  ──  Intent routing (built-in standard/batch/fusion)
+    │
+    ├── "random/roll"  ──►  anima-random-gen
+    │                              │
+    │                              ▼
+    │                        Random params output → master review
+    │
+    ├── "complex composition/multi-character"  ──►  anima-composition-director
+    │                              │
+    │                              ▼
+    │                        Composition JSON → master assembly
+    │
+    └── "standard generation" (default) ──►  master built-in flow
+                                   │
+                          ┌────────┼────────┐
+                          ▼        ▼        ▼
+                    danbooru-tags  composition  comfyui-
+                     (tag validation)  (optional)   manager
+                                           (execution)
 ```
 
 ---
 
 ## 🔧 Available Workflows
 
-| Workflow ID                                 | Purpose                         | LoRA                                        |
-| ------------------------------------------- | ------------------------------- | ------------------------------------------- |
-| `anima-txt2img-aesthetic-lora`              | **Default generation**          | Dual aesthetic LoRA + TeaCache + RTX VSR 2x |
-| `anima-txt2img-base`                        | Base version (no LoRA, testing) | None                                        |
-| `anima-txt2img-aesthetic-lora-enhancer`     | Enhanced                        | Aesthetic LoRA + enhancer nodes             |
-| `anima-txt2img-aesthetic-lora-fixed`        | Fixed parameters                | Dual aesthetic LoRA                         |
-| `anima-txt2img-aesthetic-lora-artist-mixer` | **Artist fusion**               | Dual aesthetic LoRA + AnimaArtistMixer      |
+| Workflow ID                                       | Purpose                         | LoRA                                        |
+| ------------------------------------------------- | ------------------------------- | ------------------------------------------- |
+| `local/anima-txt2img-aesthetic-lora`              | **Default generation**          | Dual aesthetic LoRA + TeaCache + RTX VSR 2× |
+| `local/anima-txt2img-base`                        | Base version (no LoRA, testing) | None                                        |
+| `local/anima-txt2img-aesthetic-lora-enhancer`     | Enhanced                        | Aesthetic LoRA + enhancer nodes             |
+| `local/anima-txt2img-aesthetic-lora-fixed`        | Fixed parameters                | Dual aesthetic LoRA                         |
+| `local/anima-txt2img-aesthetic-lora-artist-mixer` | **Artist fusion**               | Dual aesthetic LoRA + AnimaArtistMixer      |
 
 ---
 
@@ -297,67 +408,18 @@ The `danbooru-tags/bin/danbooru-tags.exe` is the core tag retrieval tool, **pre-
 
 ---
 
-## 🗂️ Project Structure
-
-```
-comfyui-good-anima/
-│
-├── README.md                               # This file (中文)
-├── README_EN.md                            # English version
-├── LICENSE                                 # MIT License
-├── .gitignore                              # Git ignore rules
-│
-├── samples/                                # 🖼️ Sample images
-│
-├── anima-composition-director/             # 🎬 Composition planning
-│   ├── SKILL.md
-│   └── agents/openai.yaml
-│
-├── anima-random-gen/                       # 🎲 Random generation
-│   └── SKILL.md
-│
-├── comfyui-animatool/                      # 🔧 Generation entry
-│   └── SKILL.md
-│
-├── comfyui-manager/                        # ⚡ ComfyUI manager
-│   ├── SKILL.md
-│   └── workspace/
-│       ├── config.json
-│       ├── data/                           # Workflow JSON definitions
-│       ├── cache_anima_outputs.js
-│       └── run_workflow_args.js
-│
-├── runtime/                                # Optional runtime artifacts (local, not for commit)
-│   ├── comfyui-manager/
-│   │   ├── outputs/
-│   │   ├── cache/
-│   │   └── history/
-│   └── danbooru-tags/
-│
-└── danbooru-tags/                          # 🏷️ Tag retriever
-    ├── SKILL.md
-    ├── bin/
-    │   └── danbooru-tags.exe               # Rust CLI (pre-compiled)
-    ├── anima-1.0.csv                       # Main tag index
-    ├── tags_index.sqlite                   # SQLite index (pre-built)
-    ├── tags_index.json                     # JSON index (pre-built)
-    ├── build_index.py / sqlite_index.py / tag_groups.py
-    ├── artists_extended.txt
-    └── banned_tags.csv
-```
-
----
-
 ## 📚 References
 
-- [Anima base v1.0 - HuggingFace](https://huggingface.co/KBlueLeaf/anima-base-v1.0)
-- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
-- [ANIMA_BOOSTER (AnimaBoosterLoader)](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)
-- [ComfyUI-BSS_FLSampler (FLS_SamplerV4)](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)
-- [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)
-- [RES4LYF (beta57 scheduler)](https://github.com/ClownsharkBatwing/RES4LYF)
-- [NVIDIA RTX Nodes (RTX VSR)](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)
-- [Snow CLI](https://snowcli.com/docs)
+- **Model**: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) — official model page
+- **ComfyUI**: [comfyanonymous/ComfyUI](https://github.com/comfyanonymous/ComfyUI)
+- **ComfyUI Manager**: [ltdrdata/ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)
+- **ComfyUI Skill CLI**: [HuangYuChuh/ComfyUI_Skill_CLI](https://github.com/HuangYuChuh/ComfyUI_Skill_CLI) — `pip install comfyui-skill-cli` ([PyPI](https://pypi.org/project/comfyui-skill-cli/))
+- **Danbooru**: [danbooru.donmai.us](https://danbooru.donmai.us/) — tag system
+- **ANIMA_BOOSTER**: [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)
+- **FLSamplerV4**: [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)
+- **TeaCache**: [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)
+- **RES4LYF**: [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF) — `beta57` scheduler
+- **RTX Nodes**: [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)
 
 ---
 
@@ -383,7 +445,9 @@ Thanks to [**Comfy-Org**](https://github.com/Comfy-Org) for [Nvidia_RTX_Nodes_Co
 
 ### Model & LoRAs
 
-Thanks to [**KBlueLeaf**](https://huggingface.co/KBlueLeaf) and the Anima team for the Anima base v1.0 model. Anima is a rising star in the AI anime image generation landscape — its outstanding performance in character consistency, art style fidelity, and composition understanding has brought local AI illustration to an unprecedented level. Without this model, the entire ComfyUI anime generation ecosystem would be missing its most important piece.
+Thanks to [**CircleStone Labs**](https://huggingface.co/circlestone-labs) and **Comfy Org** for the Anima model research and release. Anima is a rising star in the AI anime image generation landscape — its outstanding performance in character consistency, art style fidelity, and composition understanding has brought local AI illustration to an unprecedented level. Without this model, the entire ComfyUI anime generation ecosystem would be missing its most important piece.
+
+Thanks to [**KBlueLeaf**](https://huggingface.co/KBlueLeaf) for early Anima research and release that laid the foundation.
 
 Thanks to the [**CivitAI**](https://civitai.com) community LoRA authors:
 
@@ -395,5 +459,9 @@ These two aesthetic LoRAs are the key to elevating Anima outputs from "passable"
 ### Scheduler
 
 Thanks to [**ClownsharkBatwing**](https://github.com/ClownsharkBatwing) for the [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF) node pack providing the `beta57` scheduler, which offers a stable, high-quality default sampling configuration for this project.
+
+### Architecture & Design
+
+Thanks to the [**Perplexity Agents Team**](https://www.perplexity.ai) for the Skills design methodology and progressive disclosure architecture. Thanks to **NextLevelBuilder** for the ui-ux-pro-max blueprint.
 
 ❤️ Heartfelt thanks to all open-source authors and community contributors for their contributions to the AI creative ecosystem.

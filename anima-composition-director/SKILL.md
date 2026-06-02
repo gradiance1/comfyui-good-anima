@@ -1,212 +1,172 @@
 ---
 name: anima-composition-director
-description: Convert Anima image-generation intent, tags, references, or rough prompts into concrete composition decisions. Use with comfyui-animatool when the task needs better camera framing, aspect ratio, subject placement, lighting, value contrast, depth of field, face readability, emotional staging, storytelling composition, symbolic visual metaphor, or reference-image composition transfer before assembling Anima prompts.
+description: |
+  当 Anima 生图需要把模糊意图解析成清楚视觉计划时加载：场景容器补全、关系/手势/叙事节拍、多人站位、非默认画布/镜头、参考图构图迁移、大场景、强光影、空间深度、脸部可读性保护。
+  不用于已经说明主体、风格和场景的简单单人 prompt。
 ---
 
-# Anima Composition Director
+# Anima 构图导演
 
-## Goal
+本 skill 把模糊用户意图变成清楚视觉计划，并在需要时给出 Anima 容易出错的边界条件和可交接字段。
 
-将生图意图转成视觉计划：画布、镜头、主体位置、层次、光源、景深。
+## 意图解析
 
-Do not write literary mood paragraphs. Describe the picture layout.
+拿到用户需求后，先判断它是否已经足够清楚；如果仍然模糊，就把它拆成三层，再落回构图。意图层的目标是把模糊需求变成清楚需求，不是替用户强加固定设定。不要字面翻译用户语句：用户说“花海”不等于只写 `flower field`；用户没说“手势”也不等于人物一定要站着。意图层负责展开，规则层负责收缩；不要在这里写 Anima 崩点案例。
 
-## Inputs to consider
+### 第一层：确认
 
-- User hard constraints: size, aspect ratio, platform use, reference image scope.
-- Subject: number of characters, body visibility, action, props, outfit complexity.
-- Scene: indoor/outdoor, close space/wide space, background importance.
-- Identity risk: whether face, hair, outfit, or emblem must stay readable.
-- Output purpose: quick test, wallpaper, cover-like key visual, character sheet, interaction scene.
+先提取用户已经明确的部分，暂不延伸：
 
-## 读取导航
+- 主体是谁：命名角色、原创角色、人数、CP/组合。
+- 场景容器是什么：花海、教室、街道、神社、抽象空间等。
+- 关系是什么：CP、对峙、守护、擦肩、回避、独处。
+- 风格锚点是什么：画师、年代、光影、材质、用途。
+- 用户明确拒绝什么：不加角色、不改场景、不写文字、不要某风格。
 
-| 需要处理的事       | 读取                           |
-| ------------------ | ------------------------------ |
-| 做一次完整构图决策 | 从头读至"Self-check"           |
-| 只查画布规则       | 跳到"Canvas fit"               |
-| 只查镜头语法       | 跳到"Camera grammar"           |
-| 只查参考图构图迁移 | 跳到"Reference image transfer" |
-| 查看输出格式       | 跳到"Output contract"          |
+场景容器一旦锁定不可改写。用户说花海就保留花海，不偷换成花田、花园或室内花房。
 
-## Canvas fit
+### 第二层：补全
 
-Choose after the semantic draft is clear. If the user gave a size, keep it and adapt composition.
+从场景容器的物理属性反推画面成立所需上下文。补全不是猜用户偏好，也不是套默认模板，而是避免画面空洞、静止、字面化。
 
-规则：用户允许某分辨率 ≠ 所有图都用该分辨率。每张图按下表按构图语义独立选择画布，禁止一刀切复用。
+下表是思考样例，不是默认填充项。优先选择当前画面确实需要的内容。
 
-| Canvas          | Use when                                           |
-| --------------- | -------------------------------------------------- |
-| `1536x1024` 3:2 | 多人互动、横向动作、宽景背景、左右空间关系         |
-| `1024x1536` 2:3 | 单人全身、立绘、手机壁纸、纵向姿态                 |
-| `1536x864` 16:9 | 电影感宽银幕、远景、横向环境叙事、桌面壁纸预览     |
-| `1536x1152` 4:3 | 室内中景、互动场景、人物占比高但仍保留环境         |
-| `1152x1536` 3:4 | 角色为主、少量环境叙事、比 2:3 更稳的竖图          |
-| `1536x768` 2:1  | 超宽场景、横向队列、压迫感风景；必须保护脸部可读性 |
-| `1024x1024` 1:1 | 头像、半身、中心主体、简单稳定构图                 |
-| `1536x1536` 1:1 | 高信息量中心构图、复杂服装、道具环绕、丰富背景     |
+| 已知 | 可推导的画面条件 |
+| --- | --- |
+| 花海 | 春季或初夏，户外空气，花瓣、花茎、自然地面层次 |
+| 花海 + 户外 | 微风或晴朗光线；否则花瓣不动，画面像静物 |
+| 风 | 发丝微扬、袖口/裙摆轻动、花瓣落在衣褶或道具上 |
+| 教室窗边 | 窗光、窗帘、桌椅或黑板作为空间锚点 |
+| 雨夜街道 | 湿地反光、伞、路灯/霓虹、水痕、衣料湿润 |
+| 神社夜景 | 石阶、鸟居、灯笼/月光、御札或袖摆的轻微动作 |
+| 两人同框 | 位置、距离、视线、手势或道具通常需要帮助表达关系 |
 
-Do not recommend `1920x1080` for initial Anima base1.0 generation. Larger output belongs to upscale.
+用户已经指定天气、时间、季节、服装状态或镜头时，保留用户版本，不再自动推导同类项。
 
-## Layout modes
+### 第三层：创作组合
 
-Choose one image type before camera and canvas decisions. Do not mix modes unless the user asks.
+在确认和补全之后，收敛出一个能让需求更清楚的画面瞬间。尽量选择当前最合理方向，不穷举，也不把示例当作固定默认。
 
-| Mode                                   | Use when                       | Composition priority                                                       |
-| -------------------------------------- | ------------------------------ | -------------------------------------------------------------------------- |
-| Character illustration                 | 单人或角色展示                 | readable face, outfit silhouette, clean background separation              |
-| Key visual / poster                    | 主视觉、宣传图、封面感         | strong focal point, silhouette, controlled negative space only when needed |
-| Event CG / visual novel CG             | 剧情事件图、角色互动、场景瞬间 | relationship, gaze, hands, props, motivated light source                   |
-| Manga single panel                     | 单格漫画感、动作峰值           | peak action, diagonal flow, expression and hand readability                |
-| Cinematic still                        | 电影定格、强镜头感             | shot distance, camera angle, foreground/midground/background depth         |
-| Concept art / environment illustration | 场景设定、环境叙事             | scale, foreground/midground/background, atmospheric depth                  |
-| Card / splash art                      | 卡面、必杀技、强冲击图         | dynamic pose, prop silhouette, effects around but not over the face        |
-| Character sheet                        | 设定展示、服装细节             | neutral pose, clean lighting, readable design details                      |
+- 故事节拍：触碰前、触碰刹那、刚离开、回头一瞬、递出未接。选择最贴合用户关系的一种；“触碰前一秒”只是高张力关系的可选解，不是默认规则。
+- 手势叙事：主动方伸手、递出、前倾、掌心向上；被动方后退、侧身、手指缩回、用伞/书/怀表隔开距离。
+- 概念锚点：用一个可见物件承载关系，例如花瓣落到对方道具上、影子跨过边界、共用道具被花缠绕。
+- 视线关系：看向对方、看向对方手中物、避开视线、看向画外。按关系温度选择，不把对视当固定默认。
 
-Mode rules:
+隐喻尽量落成可见物件和动作，不写解释性说明。若某个构图手法会改写用户给定的场景、关系或象征物，保留用户意图，换一种表达方式。若用户需求已经足够清楚，只做最小补全。
 
-- `illustration` is the broad category; specify a narrower mode when composition needs it.
-- `event CG` needs a readable story moment, not prose or backstory.
-- `manga single panel` is one image only; do not describe multiple panels unless requested.
-- `cinematic still` may borrow film shot terms, but must stay a static frame.
-- If unsure, default to `character illustration` for simple character requests and `event CG` for interaction scenes.
+### 意图 brief 输出
 
-## Camera grammar
-
-每行选一个值，除非用户明确需要特殊镜头：
-
-- Distance: `close-up`, `upper body`, `cowboy shot`, `full body`, `wide shot`.
-- Angle: `eye-level`, `low front angle`, `high angle`, `side view`, `three-quarter view`, `over-shoulder view`, `top-down view`, `bird's-eye view`, `aerial view`, `pov`, `first-person view`.
-- Lens feel: `normal perspective` by default; use `wide-angle` only for strong space or action. Avoid fisheye unless requested.
-- Focus technique: `shallow depth of field`, `deep focus`, `rack focus look`, or `soft background blur`.
-- Face rule: if identity matters, include `Keep the face sharp and readable.`
-
-Avoid contradictions: no `close-up` with `full body`; no `from above` with `from below`; no wide shot if the face must dominate.
-
-- One frame gets one primary camera idea; do not stack `low angle`, `top-down`, and `over-shoulder` together.
-- Convert movement terms into static layout: `tracking shot` means subject offset plus background leading lines; `push-in` means closer framing and stronger face emphasis; `orbit` means three-quarter view with curved background cues.
-- For `top-down`, `bird's-eye view`, or `aerial view`, show readable ground layout with roads, rooftops, fields, shadows, crowds, or one landmark.
-- For foreshortened POV or figure-emphasis framing, use foreground limb/prop/fabric, believable joints, silhouette, crop, or rim light while preserving identity anchors.
-- For action, describe the peak pose and motion direction, not a sequence of events.
-
-## Composition patterns
-
-Use one clear pattern:
-
-- Center: stable portrait, icon, square image, character focus.
-- Rule of thirds: character plus readable environment, poster-like balance.
-- Diagonal: action, weapons, movement, falling, chase, dynamic pose.
-- Layered depth: foreground object, midground subject, background scene.
-- Negative space: title area, sky, empty corridor, visual breathing room.
-- Symmetry: ritual, shrine, throne, formal scene, stillness.
-
-State subject placement and background direction. Example: `Place the subject slightly right of center, with the corridor receding to the left.`
-
-Scene coherence:
-
-- Pick one story anchor: character action, prop interaction, weather effect, or location function.
-- Pose, expression, outfit, prop, weather, and background must support that anchor; remove details that tell a different story.
-- If the environment matters, show how the character uses or reacts to it, not just where they stand.
-- Emotion must become visible staging: expression, gaze, hand pose, body direction, distance, occlusion, or light placement.
-- Symbolism must become one visible motif, prop, flower, shadow shape, framing device, or background echo; do not explain the metaphor.
-- For story contrast, use visible juxtaposition or purposeful negative space; keep it guided by gaze, light, or background shape.
-
-Framing safety:
-
-- Lead room: if a subject looks or moves sideways, leave open space in that direction unless the user wants cramped tension.
-- Headroom: keep small space above the head in portraits; use extra top space only for sky, title, or scale.
-- Crop safety: avoid accidental cuts through wrists, elbows, knees, ankles, hands, or feet; crop wider or clearly between joints.
-- Foreground framing: use doorframes, windows, branches, or props only when they guide attention to the subject.
-- Avoid tangents: do not let character outlines, props, or background edges just touch; separate them or overlap clearly.
-
-Visual-design rules:
-
-- Establish one focal point first; secondary props and background must support it.
-- Keep face and hands readable; move overlaps away from them.
-- Put the clearest silhouette against the simplest background area.
-- Standing or walking subjects need a ground contact cue: feet on floor, road, grass, contact shadow, cast shadow, or footprint.
-- When clothing is complex, simplify the background and keep the silhouette readable.
-- Use clear value separation, controlled edges, and one dominant color palette plus one accent color.
-
-## Lighting and depth
-
-Define light as visible geometry, not abstract mood:
-
-- Key light direction: left / right / above / below / behind / window side.
-- Rim light only when it helps silhouette separation.
-- Fill light only when shadows hide the face or outfit identity.
-- Background light should not overpower the face.
-- For dramatic contrast, choose one readable value plan: face-lit dark background, split light, backlit silhouette, or rim-only separation.
-- If shadows cross the face, keep at least one eye readable unless concealment is requested.
-- Use background blur when scene detail competes with identity.
-- For 2:1 or wide shots, explicitly protect face readability.
-- Avoid stacking many post-process words; pick one: bloom, vignette, lens flare, film grain, or chromatic aberration.
-- Use vignette only to guide the eye toward the subject, not as a default style word.
-
-## Reference image transfer
-
-If a reference image is used only for composition, extract only:
-
-- aspect ratio
-- camera distance
-- camera angle
-- subject position
-- depth layers
-- light direction
-- blur / focus behavior
-
-Do not copy reference character, outfit, color scheme, props, or setting unless the user asks.
-
-## Output contract
-
-Return or pass forward this compact structure:
+输出给 `comfyui-animatool` 的 brief 保持短，不向用户复述完整推理：
 
 ```json
 {
-  "prompt_semantic_draft": "1girl full body, classroom window, quiet pose, soft daylight",
-  "canvas_fit": "1536x1024 horizontal composition for environment and subject placement",
-  "final_composition": "subject slightly right of center; window and classroom depth open to the left",
+  "intent_summary": "what the image should express",
+  "locked": {
+    "subject": "characters or subject",
+    "scene_container": "fixed container",
+    "relationship": "relationship or mood",
+    "style_anchor": "artist / era / lighting / material"
+  },
+  "inferred_context": [
+    "only context required for the scene to work"
+  ],
+  "creative_anchor": {
+    "story_moment": "one selected moment",
+    "gesture": "one visible relationship action",
+    "object": "one visible symbolic prop if useful",
+    "gaze": "one gaze relation"
+  },
+  "nltags_sentences": [
+    "short English visual control sentence"
+  ]
+}
+```
+
+## 何时使用
+
+使用：
+
+- 多角色同框，需要位置、属性归属或互动关系。
+- 用户指定镜头、画布、参考图构图、POV、俯视、广角、大场景。
+- 强光影、叙事场景、空间层次会影响主体可读性。
+- 生成结果容易脸小、漂浮、背景抢主体、肢体互相粘连。
+
+跳过：
+
+- 简单单人、半身/头像、用户已有完整 prompt。
+- 只需要 tag 校验、画师解析或工作流执行。
+
+## Anima 边界
+
+- 不默认 `1920x1080`；初始生成通常不推荐单边超过 `1536`，大图交给放大节点。
+- 复杂衣装或身份优先时，先简化背景，不要删身份锚点。
+- 多角色必须绑定“位置 + 角色 + 关键外观/服装 + 动作”，不要写 loose hair/color/outfit list。
+- 极端俯视、低角度、POV、广角会增加脸部和肢体崩坏风险；需要时明确前景、中景、背景和脸部可读性。
+- 光源方向保持一致；背光时补一句保护脸部或轮廓。
+- 大背景/宽画幅必须说明主体占比、地面接触、尺度参照或前中后景，否则容易漂浮或主体过小。
+
+## 画布参考
+
+| 画布        | 用途                            |
+| ----------- | ------------------------------- |
+| `1024x1536` | 单人全身、竖图、手机壁纸        |
+| `1024x1024` | 头像、半身、中心主体            |
+| `1152x1536` | 角色为主，带少量环境            |
+| `1536x1024` | 多人互动、横向动作、宽背景      |
+| `1536x1152` | 室内中景、人物占比较高的环境    |
+| `1536x864`  | 宽银幕、远景、桌面壁纸          |
+| `1536x1536` | 高信息量中心构图、道具/服装复杂 |
+
+用户给定尺寸时保留尺寸，但要调整主体大小、留白和背景方向。
+
+## nltags 句式
+
+- 通常 1-4 句就够；复杂图可以更多，但每句都要能改变画面。
+- 每句一个可见控制：位置、动作、镜头、光源、景深、脸部质量。
+- 使用具体动词：`Place`, `Use`, `Keep`, `Frame`, `Light`, `Blur`。
+- 不写文学比喻、世界观解释、连续视频动作。
+
+示例：
+
+```text
+Place the main subject slightly right of center.
+Use soft window light from the left side.
+Keep her face sharp and readable, with a softly blurred background.
+```
+
+多人示例：
+
+```text
+Place Reimu on the front left, with brown hair and a red shrine outfit.
+Place Marisa on the front right, with blonde hair and a black witch dress.
+Keep their hands separated and both faces readable.
+```
+
+## 输出契约
+
+返回或传给 `comfyui-animatool`：
+
+```json
+{
   "canvas": {
     "width": 1536,
     "height": 1024,
     "reason": "horizontal interaction scene"
   },
-  "camera": "full body, low front angle, normal perspective",
-  "composition": "subject slightly right of center; background opens to the left",
-  "lighting": "soft window light from the left, subtle rim light",
-  "focus": "face sharp and readable, background softly blurred",
+  "camera": "upper body, eye-level, normal perspective",
+  "composition": "two characters share the midground with clear spacing",
+  "lighting": "soft window light from the left",
+  "focus": "faces sharp and readable, background softly blurred",
   "nltags_sentences": [
-    "Place her full body slightly right of center.",
-    "Use a low front camera angle with normal perspective.",
-    "Keep her face sharp and readable, with a softly blurred background."
+    "Place the two characters in the center midground with clear spacing.",
+    "Use soft window light from the left side.",
+    "Keep both faces sharp and readable, with a softly blurred background."
   ]
 }
 ```
 
-Field rules:
+## 按需参考
 
-- `prompt_semantic_draft`: compact visual content summary before tag assembly.
-- `canvas_fit`: why this canvas matches the draft; mention conflicts if adapting a user-fixed size.
-- `final_composition`: the final layout sentence that must match `width` and `height`.
+用户输入稀疏、场景容器明确但缺少天气、动作、道具或叙事节拍时，读 `references/intent-expansion-patterns.md`。
 
-Rules for `nltags_sentences`:
-
-- 2–5 sentences.
-- 8–18 English words per sentence.
-- One sentence controls one thing: pose, camera, placement, lighting, depth, or face quality.
-- Use at most one camera term sentence and at most one focus/depth sentence.
-- No explanatory metaphors, backstory, destiny, personality analysis, or vague mood stacking.
-- Symbolic requests are allowed only as visible motif, staging, or light contrast, not as explanatory prose.
-- No video-only instructions such as `the camera pans`, `the camera tracks`, or `then she turns`.
-- Prefer concrete verbs: `place`, `use`, `keep`, `frame`, `light`, `blur`.
-
-## Self-check
-
-Before returning the plan:
-
-- Canvas matches the final prompt idea.
-- Subject size matches camera distance.
-- Face readability is protected when identity matters.
-- Standing subjects do not float; aerial scenes have ground layout and scale cues.
-- Background detail does not fight the subject.
-- `nltags_sentences` are short layout controls, not prose.
+只有遇到具体失败模式时才读 `references/composition-case-studies/_index.md`，不要默认加载整套案例库。

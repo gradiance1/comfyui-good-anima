@@ -5,8 +5,8 @@ from typing import Dict, Optional, Set, Tuple
 
 MAX_LIMIT = 100
 PROMPT_LIMITS = {"artists": 1, "characters": 1, "series": 1, "general": 8, "meta": 4}
-SERIES_SOURCE_CATEGORIES = {"characters"}
-CHARACTER_SOURCE_CATEGORIES = {"series"}
+SERIES_SOURCE_CATEGORIES = {"series"}
+CHARACTER_SOURCE_CATEGORIES = {"characters"}
 
 # general 标签按生图用途细分。白名单保持小而精，避免把大表检索结果整页塞回 prompt。
 APPEARANCE_TAGS: Set[str] = {
@@ -81,7 +81,7 @@ CLOTHING_DETAIL_TAGS: Set[str] = {
 HANDWEAR_TAGS: Set[str] = {
     "gloves", "black_gloves", "white_gloves", "red_gloves",
     "fingerless_gloves", "elbow_gloves", "paw_gloves", "fur-trimmed_gloves", "animal_hands",
-    "cat_paws", "pawpads", "fur-trimmed_gloves",
+    "cat_paws", "pawpads",
 }
 
 SCENE_TAGS: Set[str] = {

@@ -27,6 +27,10 @@ cache/
 outputs/
 runtime/
 tmp/
+comfyui-manager/workspace/data/local/*/history/
+comfyui-manager/*.json
+danbooru-tags/batch_*.json
+danbooru-tags/BUG_REPORT_*.md
 
 # Archives
 *.zip
@@ -39,7 +43,7 @@ tmp/
 *.swp
 *.swo
 
-# New version (未稳定前暂不追踪)
+# Experimental versions (未稳定前暂不追踪)
 comfyui-good-anima-new/
 
 # Agent 会话和技能缓存（不应提交）

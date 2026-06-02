@@ -1,116 +1,76 @@
 ---
 name: anima-random-gen
-description: Generate randomized but Anima-compliant image parameters after comfyui-animatool confirms random-image generation intent. Produces validated artist, prompt fields, resolution, sampler, scheduler, CFG, and preview text.
+description: |
+  当 comfyui-anima-master 路由随机 / roll / 抽卡 / surprise-me Anima 生图时加载。只产出互相兼容的随机语义参数，再回到 comfyui-animatool 做最终 prompt 和 args 复核。
+  不用于独立 tag 查询或 ComfyUI 执行。
 ---
 
-# Anima 随机图生成器
+# Anima 随机生成器
 
-## 默认职责
+随机图的目标是给出一组互相兼容的语义参数，不是把随机 tag 池原样塞进 prompt。
 
-本 skill 只在 `comfyui-animatool` 已确认随机生图意图后使用。它产出随机参数（画师、prompt、画布、采样参数），不直接生图。
+## 流程
 
-## 权威边界
+1. 先确定随机范围：角色、服装、场景、画师、构图、或全随机。
+2. 抽取候选：可用本地随机池或 `danbooru-tags --random`；最终 hard anchors 仍需确认。
+3. 组合成一个语义一致的画面：人数、主体、外观、服装、动作、场景、nltags、画布。
+4. 做冲突检查：姿势、表情、服装状态、光源、主体/背景优先级。
+5. 返回给 `comfyui-animatool` 复核并组装 `prompt_11` / `prompt_12`。
 
-- 画师池与 tag 锚点必须经过 `danbooru-tags` Rust CLI / Anima CSV 索引。
-- 本 skill 只产出随机参数；执行交给 `comfyui-manager`。
+## 随机画师
 
-## 读取导航
+- 默认不强制随机画师。
+- 默认加速 + 美学 LoRA 工作流推荐单画师；每个非融合 job 分配 1 个已确认 `@artist` 即可。
+- 批量随机时，候选数 `N` 和选中数 `K` 由用户要求决定；可为每个 job 分配 1 个已确认画师。
+- 用户要求从候选池中筛选时，只对选中的 `K` 个候选做后续网络搜索或风格摘要，不搜索完整候选池。
+- 多画师随机融合只在用户明确要求 Artist Mixer 时使用 `artist_chain`。
+- 不要输出随机多画师测试串给普通 prompt。
 
-| 需要处理的事   | 读取                   |
-| -------------- | ---------------------- |
-| 生成随机图参数 | 继续读"随机前视觉简报" |
-| 输出字段说明   | 跳到"输出字段"         |
-| 随机规则与权重 | 跳到"随机规则"         |
-| 调用后检查清单 | 跳到"调用后检查"       |
 
-## 随机检索入口
+## 随机候选的网络检索预算
 
-随机画师与锚点确认必须调用 `danbooru-tags.exe`，并遵循 `danbooru-tags` skill 的执行入口、`--batch-stdin` 和随机数量规则：
+随机候选池不做全量网络搜索；最终选中的角色和画师按用途分层核验。
 
-```powershell
-.\bin\danbooru-tags.exe --random 5 --for-prompt --json --compact
-.\bin\danbooru-tags.exe --random 20 --group clothing --json
-```
+### 随机角色
 
-只用 `confirmed_tags`，`candidate_tags` 必须按随机视觉简报筛选。缺失项交给 `nltags`，不要继续无限补查。
+- 随机角色候选池：只抽候选，不逐个网络搜索。
+- 最终选中的 K 个命名/IP 角色，先让模型基于自身知识补少量身份锚点；不要把网络搜索当默认步骤。
+- 只有角色小众、同名/多皮肤/跨作品、用户要求高还原、模型自己不确定，或历史生成出现服装/人设漂移时，才网络核验。
+- 核验目标不是写百科，而是提取 3-5 个防漂移身份锚点：发色、瞳色、发型、标志服装、道具、阵营/作品。
+- `danbooru-tags` confirmed 只证明角色 tag 有效，不证明模型一定会记对服装或人设；有把握的热门角色可以不查。
+- 外观锚点能查到 Danbooru tag 就回填；查不到或组合关系复杂时写短 `nltags`。
 
-随机候选数量和 `--for-prompt` 语义遵循 `danbooru-tags`；候选池只供内部筛选，最终输出少量被选项。
+### 随机画师
 
-## 随机前视觉简报
+- 随机画师候选池：只抽候选，不逐个网络搜索。
+- 如果画师只是作为已确认 `@artist` 风格锚点，默认不查画风偏好。
+- 只有用户要求画风匹配、画师时期、代表作、大场景/光影偏好，或画师名称来自昵称/社交账号时，才对最终选中的 K 个画师做网络核验。
 
-随机图不能只是随机抽 tag。生成随机参数前，先按 `anima-composition-director` 的方法确定主体、镜头、构图、光源、画布和 `nltags_sentences`，再随机画师与 hard anchors。
+### 共同规则
 
-随机结果必须输出完整画面描述，禁止互不相关的标签池采样。
-
-### 分辨率与构图回写
-
-随机图也不要固定套默认竖图。先形成语义草案，再按 `anima-composition-director` 的 canvas fit 选择 `width/height`，最后把主体位置、景别、背景展开方向写回 `nltags`。
-
-如果随机草案和画布不匹配，优先调整构图。`1536x1536` 只用于高信息量中心构图；简单头像、表情图、普通半身图使用 `1024x1024`。
+- 不搜索未采用候选。
+- 网络搜索只解析设定、别名、画师时期或公开来源；最终 tag 仍回到 `danbooru-tags` 校验。
 
 ## 输出字段
 
-必须输出一组完整参数给 `comfyui-animatool` 复核：
+| 字段 | 含义 |
+| --- | --- |
+| `quality_meta_year_safe` | 质量/年份/安全标签 |
+| `count` | 人数 |
+| `artist` | 可为空；默认加速 + 美学 LoRA 非融合 job 推荐 1 个 `@artist` |
+| `appearance` | 已确认或稳定的外观锚点 |
+| `tags` | 服装、表情、姿势、道具等少量兼容 tag |
+| `environment` | 场景/天气/简单光影 tag |
+| `nltags` / `nltags_sentences` | 短自然语言控制句 |
+| `width` / `height` | 画布 |
+| `steps` | 默认 30，复杂图可 40 |
+| `seed` | 可复现随机 |
 
-| 字段                      | 说明                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------- |
-| `positive_prompt_preview` | 最终正向预览，英文                                                                    |
-| `quality_meta_year_safe`  | 质量/年份/安全标签                                                                    |
-| `count`                   | 人数                                                                                  |
-| `artist`                  | 1 个 `@artist name`，最多 2 个                                                        |
-| `artist_chain`            | 仅显式画师串/多画师融合时输出；不带 `@`，例如 `wlop, (sakimichan:1.2)`                |
-| `appearance`              | 外观硬锚点                                                                            |
-| `tags`                    | 已确认的服装/表情/姿势等硬锚点                                                        |
-| `environment`             | 已确认的场景/光影短 tag                                                               |
-| `nltags`                  | 英文自然语言补充，可为短段落或多句                                                    |
-| `neg`                     | 负面提示词                                                                            |
-| `width` / `height`        | 根据 `anima-composition-director` 的 `canvas_fit` 选择；默认不主动推荐任一边超过 1536 |
-| `steps`                   | 默认 30                                                                               |
-| `cfg`                     | 默认 4.5                                                                              |
-| `sampler_name`            | 默认 `dpmpp_2m_sde_gpu`                                                               |
-| `scheduler`               | 默认 `beta57`                                                                         |
+## 关键约束
 
-## 随机规则
-
-1. 先形成视觉简报和 prompt 语义草案，再做 `canvas_fit`，最后随机与回写构图。
-2. 质量前缀默认：`masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025, nsfw`（安全标签默认 `nsfw`，用户可覆盖）。
-3. 画师必须从 Anima CSV 画师池抽取并带 `@`；默认 1 个。
-4. 用户明确要求画师串/多画师融合时，输出不带 `@` 的 `artist_chain`；`positive_prompt_preview` 不重复包含这些画师标签。
-5. `environment` 放 2-6 个已确认的场景/光影 tag。
-6. `nltags` 用英文补足动作、空间、光影、材质和氛围；不要和 tags 冲突或者重复语义。
-7. 姿势、表情、服装要互相兼容；不要生成 `lying` + `sitting`、`open mouth` + `closed mouth` 这类冲突组合。
-8. 单人、头像、半身或角色表现图必须考虑脸部可读性，在 `nltags` 中保留简短控制句。
-9. 背景不是主体时，优先使用轻微背景虚化或 `depth of field` 分离主体；复杂背景图只控制景深落点。
-10. 默认采样参数：30 steps、CFG 4.5、`dpmpp_2m_sde_gpu`、`beta57`。
-
-## 权重规则
-
-Anima 官方支持 prompt weighting，但小权重通常不明显；官方示例为 `(chibi:2)`。
-
-- 默认不要加权，先靠准确 tag、顺序和短句控制。
-- 只有用户明确要求强化/弱化，或某元素多次不稳定时才加权。
-- 从 `(tag:2)` 级别开始测试；不要默认使用 `1.1–1.3` 小权重。
-- 不要给角色名、画师名、安全标签和整段 `nltags` 默认加权。
-- 不要大面积加权，避免构图、肢体和细节污染。
-
-## 调用后检查
-
-`comfyui-animatool` 收到随机参数后必须检查：
-
-1. `positive_prompt_preview` 与字段一致。
-2. `artist` 为 `@artist name`；若有 `artist_chain`，确认它不带 `@` 且普通 prompt 不重复包含多画师。
-3. `quality_meta_year_safe` 有安全标签。
-4. `environment` 与 `nltags` 分离且不冲突。
-5. `steps=30`、`cfg=4.5`、`sampler_name=dpmpp_2m_sde_gpu`、`scheduler=beta57`，除非用户指定覆盖。
-6. `nltags` 必须匹配最终 `width/height`：横图强调左右空间和背景展开，竖图强调主体纵向关系，方图强调中心构图。
-7. 单人、头像、半身或角色表现图必须保留脸部可读性控制；复杂背景不能遮挡主体脸部。
-
-## 禁止
-
-- 禁止以纯 tag 串替代随机图参数。
-
-- 不要丢弃 `nltags`。
-
-- 不要把随机画师测试串整体作为画师输入。
-
-- 不要使用固定默认画师组合。
+- 不编造 Danbooru hard anchors；查不到就放进 `nltags`。
+- 不重复 tag 与 `nltags` 语义。
+- 不把随机候选 JSON 原样交给用户或 prompt。
+- 候选池只负责抽样；最终 prompt 只使用选中的 job 方案。
+- 不默认 portrait；按随机出来的画面语义选画布。
+- 默认质量前缀遵循 `shared/conventions.md`。

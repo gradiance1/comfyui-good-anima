@@ -178,7 +178,7 @@
       ],
       "combine_mode": "output_avg",
       "fusion_mode": "interpolate",
-      "strength": 0.7,
+      "strength": 1.0,
       "enabled": true,
       "apply_to_uncond": false,
       "advanced_options": [

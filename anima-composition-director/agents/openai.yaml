@@ -1,4 +1,7 @@
 interface:
-  display_name: "Anima Composition Director"
-  short_description: "Turn Anima image ideas into camera, canvas, lighting, emotion, story, symbol, and short nltags controls."
-  default_prompt: "Plan the canvas, camera, composition, lighting, emotional staging, story or symbolic motif, focus, and short English nltags sentences for this Anima image idea."
+  display_name: "anima-composition-director"
+  short_description: "Anima composition planner"
+  default_prompt: "Use $anima-composition-director to plan canvas, camera, lighting, and layout."
+
+policy:
+  allow_implicit_invocation: true
