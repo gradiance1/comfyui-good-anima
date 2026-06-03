@@ -20,7 +20,7 @@ description: |
 | 仅查 tag/画师/角色/作品 | `danbooru-tags`，不执行生图 |
 | 执行已组装 args / 查队列 / 运维 | `comfyui-manager` |
 
-简单单人、用户已给清晰画面时，不强制加载构图 skill；只做显而易见的冲突检查。
+进入本 skill 后先做轻量意图识别：判断用户到底要生成什么、哪些要素已锁定、哪些缺口会影响画面成立。只有用户已经给出主体、场景、关系/动作、镜头或构图、风格/光影等足够完整的画面方案时，才跳过意图展开和构图 skill；否则先把模糊需求具体化，再进入 tag 校验与 prompt 组装。
 
 ## 不可丢事实
 
@@ -36,8 +36,8 @@ description: |
 
 ## 标准流程
 
-1. 保留用户意图：不要把一句清晰 prompt 扩写成另一张图。
-2. 先判断需求是否清楚：如果用户给的是完整 prompt 或画面已经足够明确，只做最小 brief；如果需求模糊、只给场景/关系/氛围、或缺少画面成立所需信息，则在 tag 校验前把用户输入拆成“确认 → 补全 → 创作组合”。需要更完整意图解析时读取 `anima-composition-director`。
+1. 先做意图识别 gate：用一句话确认用户真正想生成的画面，并记录已锁定的主体、场景容器、关系/动作、风格锚点和拒绝项。
+2. 判断是否需要意图展开：如果用户已经给出完整画面方案，只保留轻量 brief，不扩写成另一张图；如果输入仍然稀疏、只给场景/关系/氛围、或缺少动作、空间、时间、光影等会影响画面成立的信息，则在 tag 校验前把需求具体化为“确认 → 补全 → 创作组合”。需要更完整意图解析时读取 `anima-composition-director`。
 3. 判断是否需要规则层收缩：多人归属、复杂镜头、参考图迁移、强光影叙事、大场景空间关系或 Anima 已知崩点，才按症状读取 `composition-case-studies/`；不要把规则层当意图层。
 4. 解析并校验 hard anchors：用户给中文名、外号、圈名、社交账号、CP 简称或同名角色时，先按 `comfyui-animatool` 的名称解析规则做网络 canonical 解析，再调用 `danbooru-tags` 校验角色、作品、用户指定画师和关键服装/外观。模型已知或用户未要求的普通描述，不必强查。
 5. 组装 prompt：把意图 brief 拆成 hard anchors、environment 与 `nltags`，再按 `quality → count → character → series → artist/style → appearance → tags/environment → nltags` 组装，避免 tag 与自然语言重复。
