@@ -26,6 +26,8 @@ pub struct BatchQuery {
     pub limit: usize,
     #[serde(default)]
     pub extended: bool,
+    #[serde(default)]
+    pub match_mode: String,
 }
 
 fn default_batch_limit() -> usize {
@@ -57,6 +59,7 @@ pub struct SearchRequest {
     pub min_count: i64,
     pub limit: usize,
     pub extended: bool,
+    pub match_mode: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -139,6 +139,62 @@ pub fn query_rows(
     Ok(rows)
 }
 
+pub fn query_exact_rows(
+    category: &str,
+    group_name: &str,
+    min_count: i64,
+    prefix_norm: &str,
+    primary_norm: &str,
+    limit: usize,
+) -> Result<Vec<DbRow>> {
+    if !db_exists() || category.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut sql = String::from("SELECT t.tag, t.count, t.aliases FROM tags t");
+    let mut clauses = vec!["t.category = ?".to_string()];
+    let mut params: Vec<String> = vec![category.to_string()];
+
+    if should_join_group(group_name) {
+        sql.push_str(" JOIN tag_groups g ON g.category = t.category AND g.tag = t.tag");
+        clauses.push("g.group_name = ?".to_string());
+        params.push(group_name.to_string());
+    }
+    if min_count > 0 {
+        clauses.push("t.count >= ?".to_string());
+        params.push(min_count.to_string());
+    }
+    if !prefix_norm.is_empty() {
+        clauses.push("t.tag_norm LIKE ?".to_string());
+        params.push(format!("{prefix_norm}%"));
+    } else if !primary_norm.is_empty() {
+        clauses.push("(t.tag_norm = ? OR t.aliases_norm LIKE ?)".to_string());
+        params.push(normalize_for_sql(primary_norm));
+        params.push(format!("%{}%", normalize_for_sql(primary_norm)));
+    } else {
+        return Ok(Vec::new());
+    }
+
+    let sql = format!(
+        "{sql} WHERE {} ORDER BY t.count DESC, t.tag ASC LIMIT ?",
+        clauses.join(" AND ")
+    );
+    params.push(std::cmp::max(limit.saturating_mul(4), 20).to_string());
+
+    let conn = open_connection()?;
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(DbRow {
+                tag: row.get(0)?,
+                count: row.get(1)?,
+                aliases: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 fn open_connection() -> Result<Connection> {
     let path = find_asset("tags_index.sqlite")
         .ok_or_else(|| anyhow!("tags_index.sqlite not found near the executable"))?;

@@ -27,6 +27,7 @@ outputs/
 runtime/
 tmp/
 comfyui-manager/workspace/data/local/*/history/
+comfyui-manager/workspace/args*.json
 comfyui-manager/*.json
 danbooru-tags/batch_*.json
 danbooru-tags/BUG_REPORT_*.md

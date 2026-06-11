@@ -3,9 +3,14 @@ use std::collections::{BTreeMap, HashSet};
 use anyhow::Result;
 use rand::prelude::SliceRandom;
 
-use crate::db::{DbRow, load_extended_artists, query_artist_tags, query_random_pool, query_rows};
+use crate::db::{
+    DbRow, load_extended_artists, query_artist_tags, query_exact_rows, query_random_pool,
+    query_rows,
+};
 use crate::groups::{clamp_limit, normalize_category, query_categories, resolve_group};
-use crate::result_item::{format_artist_for_anima, make_result, mark_group_general_fallback};
+use crate::result_item::{
+    format_artist_for_anima, make_result, mark_group_general_fallback, mark_match_layer,
+};
 use crate::text_match::{
     expand_keyword_terms, match_score, matches_query, normalize_search_text, result_identity,
 };
@@ -16,9 +21,10 @@ pub use crate::types::{
     PromptItem, ResultItem, SearchRequest, SearchResults, Usage,
 };
 
-const SERIES_SOURCE_CATEGORIES: [&str; 1] = ["characters"];
-const CHARACTER_SOURCE_CATEGORIES: [&str; 1] = ["series"];
+const SERIES_SOURCE_CATEGORIES: [&str; 1] = ["series"];
+const CHARACTER_SOURCE_CATEGORIES: [&str; 1] = ["characters"];
 const GROUP_FALLBACK_MIN_SCORE: i64 = 100;
+const FUZZY_MIN_SCORE: i64 = 60;
 
 pub fn batch_layered_for_prompt(input: &BatchInput) -> Result<BatchPromptOutput> {
     validate_batch_input(input)?;
@@ -109,6 +115,7 @@ fn run_batch_query(query: crate::types::BatchQuery) -> Result<(String, LayeredPr
         min_count: query.min_count,
         limit: query.limit,
         extended: query.extended,
+        match_mode: query.match_mode,
     };
     let search_results = search_tags(&request)?;
     Ok((query.id, layered_for_prompt(&search_results)))
@@ -159,6 +166,7 @@ fn batch_layered_for_prompt_sequential(input: &BatchInput) -> Result<BatchPrompt
             min_count: query.min_count,
             limit: query.limit,
             extended: query.extended,
+            match_mode: query.match_mode.clone(),
         };
         let search_results = search_tags(&request)?;
         let layered = layered_for_prompt(&search_results);
@@ -180,10 +188,8 @@ fn batch_layered_for_prompt_sequential(input: &BatchInput) -> Result<BatchPrompt
 
 fn prompt_usage() -> Usage {
     Usage {
-        confirmed_tags:
-            "各 query 的 confirmed_tags 可作为 Danbooru 锚点候选，但仍需按用户意图筛选。"
-                .to_string(),
-        candidate_tags: "各 query 的 candidate_tags 只作备选，不要整组塞进 prompt。".to_string(),
+        confirmed_tags: "各 query 的 confirmed_tags 来自直接命中、别名精确命中或 artist prefix 命中，可作为 Danbooru 硬锚点。".to_string(),
+        candidate_tags: "各 query 的 candidate_tags 来自模糊补查或回退，只作备选，不要整组塞进 prompt。".to_string(),
         nltags_hint: "批量查询缺失或组合关系不完整时，用英文自然语言补足；不要继续无限补查。"
             .to_string(),
         empty_result: "missing 中的 query 表示本地 Anima CSV 没有可确认 tag，不要弱匹配冒充命中。"
@@ -192,6 +198,7 @@ fn prompt_usage() -> Usage {
 }
 
 pub fn search_tags(request: &SearchRequest) -> Result<SearchResults> {
+    let match_mode = normalize_match_mode(&request.match_mode)?;
     let category = normalize_category(&request.category)?;
     let group = resolve_group(&request.group)?;
     let query_category = if group.canonical.is_empty() {
@@ -204,6 +211,20 @@ pub fn search_tags(request: &SearchRequest) -> Result<SearchResults> {
     let keyword_terms = expand_keyword_terms(&request.keyword);
     let has_query = !prefix_norm.is_empty() || !keyword_terms.is_empty();
     let categories = query_categories(&group.canonical, query_category, has_query);
+
+    if matches!(match_mode.as_str(), "auto" | "exact") && has_query {
+        let exact_results = search_exact_tags(
+            &categories,
+            &group.canonical,
+            request.min_count,
+            limit,
+            &prefix_norm,
+            &keyword_terms,
+        )?;
+        if !exact_results.is_empty() || match_mode == "exact" {
+            return Ok(exact_results);
+        }
+    }
 
     let mut results: SearchResults = BTreeMap::new();
     let mut shared_results = Vec::new();
@@ -248,6 +269,60 @@ pub fn search_tags(request: &SearchRequest) -> Result<SearchResults> {
         merge_extended_artists(&mut results, &category, &prefix_norm, &keyword_terms, limit)?;
     }
 
+    Ok(results)
+}
+
+fn normalize_match_mode(mode: &str) -> Result<String> {
+    let mode = mode.trim().to_lowercase();
+    if mode.is_empty() {
+        return Ok("auto".to_string());
+    }
+    if matches!(mode.as_str(), "auto" | "exact" | "fuzzy") {
+        Ok(mode)
+    } else {
+        anyhow::bail!("invalid match_mode: {mode}; expected auto, exact, or fuzzy")
+    }
+}
+
+fn search_exact_tags(
+    categories: &[String],
+    group_name: &str,
+    min_count: i64,
+    limit: usize,
+    prefix_norm: &str,
+    keyword_terms: &[String],
+) -> Result<SearchResults> {
+    let mut results: SearchResults = BTreeMap::new();
+    let mut shared_results = Vec::new();
+    let primary_norm = keyword_terms.first().map(String::as_str).unwrap_or("");
+
+    for source_category in categories {
+        let rows = query_exact_rows(
+            source_category,
+            group_name,
+            min_count,
+            prefix_norm,
+            primary_norm,
+            limit,
+        )?;
+        let items = exact_category(
+            &rows,
+            source_category,
+            group_name,
+            min_count,
+            limit,
+            prefix_norm,
+            primary_norm,
+        );
+
+        if group_name == "series" || group_name == "characters" {
+            shared_results.extend(items);
+        } else if !items.is_empty() {
+            results.insert(source_category.clone(), items);
+        }
+    }
+
+    store_shared_results(&mut results, shared_results, group_name, limit);
     Ok(results)
 }
 
@@ -445,6 +520,62 @@ fn merge_extended_artists(
     Ok(())
 }
 
+fn exact_category(
+    rows: &[DbRow],
+    source_category: &str,
+    group_name: &str,
+    min_count: i64,
+    limit: usize,
+    prefix_norm: &str,
+    primary_norm: &str,
+) -> Vec<ResultItem> {
+    let mut results = Vec::new();
+    let mut seen = HashSet::new();
+
+    for row in rows {
+        if !row_allowed(row, source_category, group_name, min_count) {
+            continue;
+        }
+        let tag_norm = normalize_search_text(&row.tag);
+        let layer = if !prefix_norm.is_empty() && tag_norm.starts_with(prefix_norm) {
+            "prefix"
+        } else if !primary_norm.is_empty() && tag_norm == primary_norm {
+            "exact_tag"
+        } else if !primary_norm.is_empty() && alias_exact_match(&row.aliases, primary_norm) {
+            "exact_alias"
+        } else {
+            continue;
+        };
+
+        let mut item = make_result(
+            &row.tag,
+            row.count,
+            &row.aliases,
+            source_category,
+            group_name,
+            Some(if layer == "exact_tag" { 1000 } else { 900 }),
+        );
+        mark_match_layer(&mut item, layer);
+        let key = result_identity(&item.source_category, &item.tag);
+        if !seen.insert(key) {
+            continue;
+        }
+        results.push(item);
+        if results.len() >= limit {
+            break;
+        }
+    }
+
+    results
+}
+
+fn alias_exact_match(aliases: &str, primary_norm: &str) -> bool {
+    aliases
+        .split(',')
+        .map(normalize_search_text)
+        .any(|alias| alias == primary_norm)
+}
+
 fn search_category(
     rows: &[DbRow],
     source_category: &str,
@@ -474,7 +605,7 @@ fn search_category(
             continue;
         }
 
-        let item = make_result(
+        let mut item = make_result(
             &row.tag,
             row.count,
             &row.aliases,
@@ -482,6 +613,9 @@ fn search_category(
             group_name,
             keyword_match_score(&tag_norm, &aliases_norm, keyword_terms),
         );
+        if !keyword_terms.is_empty() {
+            mark_match_layer(&mut item, "fuzzy");
+        }
         let key = result_identity(&item.source_category, &item.tag);
         if !seen.insert(key) {
             continue;
@@ -493,7 +627,10 @@ fn search_category(
                 break;
             }
         } else {
-            scored.push((item.match_score.unwrap_or_default(), item));
+            let score = item.match_score.unwrap_or_default();
+            if score >= FUZZY_MIN_SCORE {
+                scored.push((score, item));
+            }
         }
     }
 

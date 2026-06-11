@@ -1,6 +1,8 @@
 # ComfyUI Good Anima 🎨
 
-> 一套面向 AI 编程助手的 ComfyUI + Anima 二次元生图技能包。当前主线是 v2mini：去掉多层代理式路由，只保留 Anima 生图所需的核心约束、Danbooru tag 校验和 ComfyUI 执行链路，让 AI 和人类把更多注意力留给画面本身。
+> 一套面向 AI 编程助手的 ComfyUI + Anima 二次元生图技能包。当前主线是 v2mini：去掉多层代理式路由，只保留 Anima 生图所需的核心约束、Danbooru tag 精确校验和 ComfyUI 执行链路，让 AI 和人类把更多注意力留给画面本身。
+>
+> v2mini 的新核心是“情境因果 → 三层 prompt → 精确执行”：先让模型根据角色、画师、场景和用户意图形成有故事感的画面瞬间，再拆成 `hard_tags`、`soft_phrases`、`nltags_block`，由 `danbooru-tags` 只确认真正的 Danbooru 硬锚点，最后交给 ComfyUI workflow 执行。
 >
 > 🌐 **[English Version](./README_EN.md)**
 
@@ -12,8 +14,10 @@
 
 - **返璞归真**：v2mini 不再依赖 master / composition-director / random-gen 多层链路，默认从 `comfyui-animatool` 进入生图。
 - **把创作权还给模型和用户**：skill 不替代审美、构图常识和角色理解；只保留 Anima 工作流中容易丢失或容易出错的硬边界。
-- **不可丢事实**：Anima prompt 顺序、tag / nltags 分离、双 LoRA 质量前缀、负向动态组装、workflow args、seed 行为、`submit` 非阻塞和 PowerShell JSON 编码。
-- **硬锚点校验**：角色、作品、画师、服装、道具等 hard anchors 由 `danbooru-tags` 校验，避免模型凭记忆乱写 tag。
+- **情境因果优先**：先确定事件起因、角色反应、环境参与和可见后果，再补齐画面八维信息。
+- **三层 prompt 组装**：`hard_tags` 放确认过的硬锚点，`soft_phrases` 放模型审美短语，`nltags_block` 放空间、动作归属、光影、景深和因果后果。
+- **不可丢事实**：Anima prompt 顺序、三层分离、双 LoRA 质量前缀、负向动态组装、workflow args、seed 行为、`submit` 非阻塞和 PowerShell JSON 编码。
+- **硬锚点精确校验**：角色、作品、画师、服装、道具等 hard anchors 由 `danbooru-tags` 先做 exact / prefix 验证；模糊结果只作候选，不冒充 confirmed tag。
 - **执行层纯粹**：`comfyui-manager` 只执行准备好的 workflow 和 args，不写 prompt、不选画师、不决定构图。
 - **按需参考**：失败模式、画师风格研究等内容留在 references，只有遇到对应问题才读取。
 
@@ -40,13 +44,13 @@
 
 v2mini 采用三段式链路：
 
-| 层级 | 组件 | 角色 | 加载时机 |
-| --- | --- | --- | --- |
-| **L1 — 入口** | `comfyui-animatool` | 视觉简报、prompt 组装、冲突检查、args 输出 | Anima 生图触发时 |
-| **L2 — 校验** | `danbooru-tags` | tag 检索、canonical 校验、随机候选池 | 需要 hard anchors 时 |
-| **L3 — 执行** | `comfyui-manager` | validate / submit / run / 排障 / 缓存输出 | args 准备完成后 |
+| 层级          | 组件                | 角色                                       | 加载时机             |
+| ------------- | ------------------- | ------------------------------------------ | -------------------- |
+| **L1 — 入口** | `comfyui-animatool` | 情境因果、八维补全、三层 prompt、冲突检查、args 输出 | Anima 生图触发时     |
+| **L2 — 校验** | `danbooru-tags`     | exact / prefix 校验、批量验证、必要候选    | 需要 hard anchors 时 |
+| **L3 — 执行** | `comfyui-manager`   | validate / submit / run / 排障 / 缓存输出  | args 准备完成后      |
 
-这条链路不做多代理分工，不创建 route contract，不把用户需求拆成过度流程。模型先理解画面，skill 只兜住 Anima 和 ComfyUI 的硬规则。
+这条链路不做多代理分工，不创建 route contract，不把用户需求拆成过度流程。模型先理解画面和故事因果，skill 只兜住 Anima、Danbooru 和 ComfyUI 的硬规则。
 
 ---
 
@@ -57,7 +61,7 @@ comfyui-good-anima/
 ├── README.md
 ├── README_EN.md
 ├── comfyui-animatool/
-│   ├── SKILL.md                # Anima 生图唯一入口：视觉简报、tag/nltags 分离、prompt + args
+│   ├── SKILL.md                # Anima 生图唯一入口：情境因果、三层 prompt、args
 │   └── references/
 │       ├── artist-style-research.md # 只在研究画师风格时读取
 │       └── failure-patterns.md      # 只在出图失败/畸形/归属混乱时读取
@@ -387,15 +391,15 @@ comfyui-manager
 
 ## 工作流类型
 
-| 类型 | 处理方式 | 说明 |
-| --- | --- | --- |
-| 文生图 | `comfyui-animatool` | 默认入口，生成 prompt + args |
-| 文生图 + 双 LoRA | `local/anima-txt2img-aesthetic-lora` | 当前默认工作流 |
-| 裸模型对比 | `local/anima-txt2img-base` | 用于排障或对比测试 |
-| 画师融合 | `local/anima-txt2img-aesthetic-lora-artist-mixer` | 仅用户明确要求融合时使用 |
-| 批量 | 单 prompt 用 `batch_size`，多 prompt 分 job | 不把多个不同主题塞进同一个 prompt |
-| 随机 / 抽卡 | `danbooru-tags --random` | 先抽候选，再由 animatool 组装 |
-| 图生图 | 暂不混入默认链路 | 后续可独立 skill 化 |
+| 类型             | 处理方式                                          | 说明                              |
+| ---------------- | ------------------------------------------------- | --------------------------------- |
+| 文生图           | `comfyui-animatool`                               | 默认入口，生成 prompt + args      |
+| 文生图 + 双 LoRA | `local/anima-txt2img-aesthetic-lora`              | 当前默认工作流                    |
+| 裸模型对比       | `local/anima-txt2img-base`                        | 用于排障或对比测试                |
+| 画师融合         | `local/anima-txt2img-aesthetic-lora-artist-mixer` | 仅用户明确要求融合时使用          |
+| 批量             | 单 prompt 用 `batch_size`，多 prompt 分 job       | 不把多个不同主题塞进同一个 prompt |
+| 随机 / 抽卡      | `danbooru-tags --random`                          | 先抽候选，再由 animatool 组装     |
+| 图生图           | 暂不混入默认链路                                  | 后续可独立 skill 化               |
 
 ---
 
@@ -482,6 +486,5 @@ GPLv3 — 详见 [LICENSE](LICENSE) 文件。
 
 感谢 [**Perplexity Agents Team**](https://docs.perplexity.ai) — Skills 设计方法论参考。
 感谢 [**NextLevelBuilder**](https://github.com/nextlevelbuilder/ui-ux-pro-max) — ui-ux-pro-max 蓝本参考。
-感谢 [**danbooru-tags Rust CLI**](https://github.com/harley-huang/danbooru-tags) 开发者 — 高速标签检索 Rust CLI。
 
 衷心感谢以上所有开源作者和社区贡献者为 AI 创作生态做出的贡献。 ❤️

@@ -37,6 +37,10 @@ pub fn mark_group_general_fallback(item: &mut ResultItem) {
     item.match_layer = Some("group_general_fallback".to_string());
 }
 
+pub fn mark_match_layer(item: &mut ResultItem, layer: &str) {
+    item.match_layer = Some(layer.to_string());
+}
+
 pub fn format_artist_for_anima(raw: &str) -> String {
     let mut s = raw.trim().to_string();
     if s.is_empty() {

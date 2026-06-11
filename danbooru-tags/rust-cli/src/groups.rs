@@ -65,20 +65,12 @@ pub fn normalize_category(category: &str) -> Result<String> {
     Err(anyhow!("未知 category: {category}"))
 }
 
-pub fn query_categories(group_name: &str, category: &str, has_query: bool) -> Vec<String> {
+pub fn query_categories(group_name: &str, category: &str, _has_query: bool) -> Vec<String> {
     if group_name == "series" {
-        return if has_query {
-            vec!["characters".to_string(), "series".to_string()]
-        } else {
-            vec!["characters".to_string()]
-        };
+        return vec!["series".to_string()];
     }
     if group_name == "characters" {
-        return if has_query {
-            vec!["series".to_string(), "characters".to_string()]
-        } else {
-            vec!["series".to_string()]
-        };
+        return vec!["characters".to_string()];
     }
     if !category.is_empty() {
         return vec![category.to_string()];

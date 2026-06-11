@@ -30,12 +30,13 @@ pub fn layered_for_prompt(results: &SearchResults) -> LayeredPrompt {
         confirmed_tags: confirmed,
         candidate_tags: candidates,
         usage: Usage {
-            confirmed_tags: "可直接作为 Danbooru 锚点回填，但仍需按 Anima 标签顺序组装。"
+            confirmed_tags:
+                "直接命中、别名精确命中或 artist prefix 命中；可作为 Danbooru 硬锚点回填。"
+                    .to_string(),
+            candidate_tags: "模糊补查或回退结果；只作备选，不得整组直接塞进 prompt。".to_string(),
+            nltags_hint: "CSV 没覆盖或组合关系不完整时，用英文短句补足；不要继续无限补查。"
                 .to_string(),
-            candidate_tags: "相关候选，先由模型按用户意图筛选，不要整组直接塞进 prompt。"
-                .to_string(),
-            nltags_hint: "CSV 没覆盖或组合关系不完整时，用英文自然语言补足，可写成短段落或多句，只要不与硬锚点冲突即可.".to_string(),
-            empty_result: "found=false 表示本地 Anima CSV 没有可确认 tag，不要改用弱匹配冒充命中。"
+            empty_result: "found=false 表示本地 Anima CSV 没有可确认 tag，不要用弱匹配冒充命中。"
                 .to_string(),
         },
     }
@@ -75,10 +76,13 @@ fn is_confirmed_item(item: &ResultItem, cat: &str) -> bool {
     if item.match_layer.as_deref() == Some("group_general_fallback") {
         return false;
     }
-    if matches!(cat, "artists" | "characters" | "series" | "meta") {
+    if matches!(
+        item.match_layer.as_deref(),
+        Some("exact_tag" | "exact_alias" | "prefix")
+    ) {
         return true;
     }
-    item.match_score.unwrap_or(i64::MAX) >= 60
+    matches!(cat, "meta") && item.match_score.unwrap_or_default() >= 1000
 }
 
 fn layered_compact_limits() -> HashMap<&'static str, usize> {
@@ -125,11 +129,11 @@ mod tests {
             aliases_short: String::new(),
             group: "general".into(),
             match_score: Some(61),
-            match_layer: None,
+            match_layer: Some("fuzzy".into()),
         };
         let (confirmed, candidate) = split_prompt_items(&[&item], "general", 8);
-        assert_eq!(confirmed.len(), 1);
-        assert!(candidate.is_empty());
+        assert!(confirmed.is_empty());
+        assert_eq!(candidate.len(), 1);
     }
 
     #[test]

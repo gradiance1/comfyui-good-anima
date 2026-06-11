@@ -42,6 +42,8 @@ struct Args {
     batch_file: String,
     #[arg(long = "batch-workers", default_value_t = 4)]
     batch_workers: usize,
+    #[arg(long = "match-mode", default_value = "auto")]
+    match_mode: String,
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -73,6 +75,7 @@ pub fn run() -> anyhow::Result<()> {
         min_count: args.min_count,
         limit: args.limit,
         extended: args.extended,
+        match_mode: args.match_mode,
     };
     let results = search_tags(&request)?;
 
@@ -204,6 +207,7 @@ fn print_random_tags(args: &Args) -> anyhow::Result<()> {
         min_count: args.min_count,
         limit: args.random,
         extended: args.extended,
+        match_mode: "fuzzy".to_string(),
     };
     let output = RandomTagsOutput {
         random_tags: random_tags(&request)?.iter().map(prompt_item).collect(),

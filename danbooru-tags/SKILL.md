@@ -12,6 +12,9 @@ description: |
 ## 硬约束
 
 - 始终使用本地 `bin/danbooru-tags.exe`，不搜索、不递归。
+- 默认先用已知/推断出的 Danbooru canonical tag 精确查询。
+- 精确查询查不到时，才进入同组别名、拆分词、候选词补查。
+- 候选池和随机池不是默认入口；仅在用户要求随机/抽卡，或精确补查仍缺失时使用。
 - `confirmed_tags` 可用于回填（仍需意图筛选）；`candidate_tags` 仅作候选，必须筛选。
 - `missing` → 写入 nltags。
 - 不决定构图、镜头、光影、workflow 执行。
@@ -30,9 +33,32 @@ $cli = Join-Path $TAG_ROOT "bin/danbooru-tags.exe"
 
 不搜索递归。不使用旧路径。
 
+## 检索优先级
+
+按顺序执行：
+
+1. **精确验证**：先用模型已知、用户给定或已解析的 canonical tag 查询。
+   - 默认 `--match-mode auto`：先 exact，exact 无命中才 fuzzy。
+   - 只允许直接命中时使用 `--match-mode exact`。
+   - artist：`--group artist --prefix "@artist name"`
+   - character：`--group character --keyword "character name"`
+   - series/IP：`--group series --keyword "series name"`
+   - general hard anchor：`--group <group> --keyword "tag phrase"`
+2. **小范围补查**：精确验证无命中时，只补同一语义锚点的别名、英文名、拆分词。
+3. **候选池**：补查仍无命中，且该锚点必须落成 tag 时，才取同 group 候选。
+4. **nltags**：复合概念、关系、构图、光影、查不到的自然语言描述写入 nltags。
+5. **随机池**：仅用户明确要求随机/roll/抽卡时调用。
+
+禁止：
+
+- 不先精确验证就直接查候选池。
+- 不把 group 候选整批塞进 prompt。
+- 不为普通描述扩展大候选池。
+- 不为同一锚点连续循环补查。
+
 ## 批量查询（生图前默认）
 
-统一使用 `--batch-file`。JSON 必须 UTF-8 without BOM：
+默认批量只放精确验证项和必要的小范围补查项。JSON 必须 UTF-8 without BOM：
 
 ```powershell
 $json = @{
@@ -55,6 +81,9 @@ $file = Join-Path $env:TEMP "danbooru_batch.json"
 
 # 角色
 & $cli --group character --keyword "hakurei reimu" --limit 5 --for-prompt --json --compact
+
+# 只做直接命中验证，不返回模糊候选
+& $cli --group character --keyword "hakurei reimu" --match-mode exact --limit 5 --for-prompt --json --compact
 ```
 
 ## 随机
@@ -74,10 +103,10 @@ $file = Join-Path $env:TEMP "danbooru_batch.json"
 
 ## 批量规则
 
-- 同一锚点的主词、别名、拆分词放同一批。
+- 同一锚点优先放 canonical 主词；别名、拆分词只在主词不稳或无命中风险高时加入。
 - 精确 artist/character/series 查询 `limit=5`。
 - 服装/动作/场景/俗称 `limit=10–20`。
-- 普通生图 ≤4 语义锚点，每锚点 2–3 变体，总 query 12–16。
+- 普通生图 ≤4 语义锚点；稳定 canonical 每锚点 1 个 query，不稳定锚点最多 2–3 变体，总 query 4–12。
 - 最多 1 次批量 + 1 次补查。
 - group 漏匹配时同批加 `category=general` 变体。
 - general 命中仅作 `candidate_tags`。
@@ -91,7 +120,8 @@ $file = Join-Path $env:TEMP "danbooru_batch.json"
 ## 输出读取
 
 - `confirmed_tags` — 可回填，仍需意图筛选。
-- `candidate_tags` — 候选，必须筛选。
+- `confirmed_tags` 只来自 `exact_tag`、`exact_alias`、artist `prefix`。
+- `candidate_tags` — 模糊补查或回退候选，必须筛选，不直接回填。
 - `missing` — 写 nltags。
 - 不向用户复述完整搜索过程。
 
