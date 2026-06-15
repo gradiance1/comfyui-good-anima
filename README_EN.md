@@ -25,11 +25,11 @@
 
 v2mini uses a three-part chain:
 
-| Tier | Component | Role | Load Timing |
-| --- | --- | --- | --- |
-| **L1 — Entry** | `comfyui-animatool` | Visual brief, prompt assembly, conflict checks, args output | On Anima generation |
-| **L2 — Validation** | `danbooru-tags` | Tag lookup, canonical validation, random candidates | When hard anchors are needed |
-| **L3 — Execution** | `comfyui-manager` | validate / submit / run / troubleshooting / output caching | After args are ready |
+| Tier                | Component           | Role                                                        | Load Timing                  |
+| ------------------- | ------------------- | ----------------------------------------------------------- | ---------------------------- |
+| **L1 — Entry**      | `comfyui-animatool` | Visual brief, prompt assembly, conflict checks, args output | On Anima generation          |
+| **L2 — Validation** | `danbooru-tags`     | Tag lookup, canonical validation, random candidates         | When hard anchors are needed |
+| **L3 — Execution**  | `comfyui-manager`   | validate / submit / run / troubleshooting / output caching  | After args are ready         |
 
 The chain does not create route contracts or split user intent into excessive workflow layers. The model understands the image first; skills keep Anima and ComfyUI rules stable.
 
@@ -44,8 +44,7 @@ comfyui-good-anima/
 ├── comfyui-animatool/
 │   ├── SKILL.md                # Single Anima entry: visual brief, tag/nltags split, prompt + args
 │   └── references/
-│       ├── artist-style-research.md # Loaded only for artist style research
-│       └── failure-patterns.md      # Loaded only for failed outputs / anatomy / attribution issues
+│       └── anima-reference.md  # Artist style research + failure/anatomy/attribution troubleshooting (on-demand)
 ├── danbooru-tags/
 │   ├── SKILL.md                # Danbooru tag lookup and validation
 │   ├── bin/danbooru-tags.exe   # Prebuilt Rust CLI
@@ -251,15 +250,16 @@ If RES4LYF is unavailable, fall back to `beta` or `ddim_uniform`. The bare model
 
 Install the following nodes in ComfyUI's `custom_nodes/` directory:
 
-| Node                        | Purpose                                                                 | Install Location                                                                                |
-| --------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **AnimaBoosterLoader**      | Anima model loader + SageAttention (auto-fallback) + JIT compilation    | [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)                 |
-| **FLS_SamplerV4**           | Foveated Latent Sampling for enhanced detail                            | [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler) |
-| **AnimaTeaCache**           | TeaCache acceleration                                                   | [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)                           |
-| **AnimaArtistPack**         | Multi-artist fusion (artist mixer only)                                 | Included in ANIMA_BOOSTER                                                                       |
-| **AnimaArtistCrossAttn**    | Cross-attention artist mixing (artist mixer only)                       | Included in ANIMA_BOOSTER                                                                       |
-| **RES4LYF**                 | ⚠️ **Required — provides `beta57` scheduler, used by default workflow** | [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF)                       |
-| **RTXVideoSuperResolution** | NVIDIA RTX VSR 2× upscaling (NVIDIA GPUs only)                          | [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)     |
+| Node                        | Purpose                                                                         | Install Location                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **AnimaBoosterLoader**      | Anima model loader + SageAttention (auto-fallback) + JIT compilation            | [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)                      |
+| **FLS_SamplerV4**           | Foveated Latent Sampling for enhanced detail                                    | [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)      |
+| **AnimaTeaCache**           | TeaCache acceleration                                                           | [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)                                |
+| **AnimaLayerReplayPatcher** | Anima inference speed-up (enhancer workflow only, ~30% faster, may sharpen/reduce quality) | [AdamNizol/ComfyUI-Anima-Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer)               |
+| **AnimaArtistPack**         | Multi-artist fusion (artist mixer only)                                         | [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)                            |
+| **AnimaArtistCrossAttn**    | Cross-attention artist mixing (artist mixer only)                               | [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)                            |
+| **RES4LYF**                 | ⚠️ **Required — provides `beta57` scheduler, used by default workflow**         | [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF)                            |
+| **RTXVideoSuperResolution** | NVIDIA RTX VSR 2× upscaling (NVIDIA GPUs only)                                  | [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)          |
 
 **Quick Install (PowerShell):**
 
@@ -268,6 +268,8 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/BlackSnowSkill/ANIMA_BOOSTER.git
 git clone https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler.git
 git clone https://github.com/daraskme/comfy_anima_tea_cache.git
+git clone https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git
+git clone https://github.com/An1X3R/Anima-Artist-Mixer.git
 git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 git clone https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI.git
 ```
@@ -373,11 +375,11 @@ Core principle: do not hard-code ordinary creative judgment; hard-code only boun
 
 | Workflow ID                                       | Purpose                         | LoRA                                        |
 | ------------------------------------------------- | ------------------------------- | ------------------------------------------- |
-| `local/anima-txt2img-aesthetic-lora`              | **Default generation**          | Dual aesthetic LoRA + TeaCache + RTX VSR 2× |
-| `local/anima-txt2img-base`                        | Base version (no LoRA, testing) | None                                        |
-| `local/anima-txt2img-aesthetic-lora-enhancer`     | Enhanced                        | Aesthetic LoRA + enhancer nodes             |
-| `local/anima-txt2img-aesthetic-lora-fixed`        | Fixed parameters                | Dual aesthetic LoRA                         |
-| `local/anima-txt2img-aesthetic-lora-artist-mixer` | **Artist fusion**               | Dual aesthetic LoRA + AnimaArtistMixer      |
+| `local/anima-txt2img-aesthetic-lora`              | **Default generation**                               | Dual aesthetic LoRA + TeaCache + RTX VSR 2× |
+| `local/anima-txt2img-base`                        | Base version (no LoRA, testing)                      | None                                        |
+| `local/anima-txt2img-aesthetic-lora-enhancer`     | Speed-up (~30% faster, may sharpen/reduce quality)   | Aesthetic LoRA + AnimaLayerReplayPatcher    |
+| `local/anima-txt2img-aesthetic-lora-fixed`        | Fixed parameters                                     | Dual aesthetic LoRA                         |
+| `local/anima-txt2img-aesthetic-lora-artist-mixer` | **Artist fusion**                                    | Dual aesthetic LoRA + AnimaArtistMixer      |
 
 ---
 
@@ -421,6 +423,8 @@ The `danbooru-tags/bin/danbooru-tags.exe` is the core tag retrieval tool, **pre-
 - **ComfyUI Skill CLI**: [HuangYuChuh/ComfyUI_Skill_CLI](https://github.com/HuangYuChuh/ComfyUI_Skill_CLI) — `pip install comfyui-skill-cli` ([PyPI](https://pypi.org/project/comfyui-skill-cli/))
 - **Danbooru**: [danbooru.donmai.us](https://danbooru.donmai.us/) — tag system
 - **ANIMA_BOOSTER**: [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)
+- **ComfyUI-Anima-Enhancer**: [AdamNizol/ComfyUI-Anima-Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer)
+- **Anima-Artist-Mixer**: [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)
 - **FLSamplerV4**: [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)
 - **TeaCache**: [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)
 - **RES4LYF**: [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF) — `beta57` scheduler
@@ -444,7 +448,7 @@ Special thanks to [**HuangYuChuh**](https://github.com/HuangYuChuh) for [ComfyUI
 
 ### Nodes & Acceleration
 
-Thanks to [**BlackSnowSkill**](https://github.com/BlackSnowSkill) for [ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER) and [ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler). ANIMA_BOOSTER provides the AnimaBoosterLoader for model loading and Sage Attention acceleration, plus AnimaArtistPack/AnimaArtistCrossAttn for multi-artist fusion. FLSampler brings Foveated Latent Sampling for enhanced detail with noise injection and acceleration. Without these nodes, Anima's potential cannot be fully realized.
+Thanks to [**BlackSnowSkill**](https://github.com/BlackSnowSkill) for [ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER) and [ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler). ANIMA_BOOSTER provides the AnimaBoosterLoader for model loading and Sage Attention acceleration. Multi-artist fusion relies on [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer) for AnimaArtistPack and AnimaArtistCrossAttn nodes. FLSampler brings Foveated Latent Sampling for enhanced detail with noise injection and acceleration. Without these nodes, Anima's potential cannot be fully realized.
 
 Thanks to [**Comfy-Org**](https://github.com/Comfy-Org) for [Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI) (the RTX VSR node). It makes image upscaling extremely fast while maintaining quality — an indispensable part of the generation pipeline.
 

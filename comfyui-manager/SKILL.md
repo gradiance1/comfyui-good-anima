@@ -205,4 +205,4 @@ node cache_anima_outputs.js --workflow-id local/anima-txt2img-aesthetic-lora
 
 ## 按需参考
 
-只在非 Anima 生图、服务器管理、排障时读取 `references/operations.md`。Anima 生图不要加载。
+服务器管理、排障与非 Anima 生图操作，参见本文件第 8 节「排障」。本 skill 不依赖外部 references 文件。

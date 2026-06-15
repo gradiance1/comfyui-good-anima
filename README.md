@@ -44,11 +44,11 @@
 
 v2mini 采用三段式链路：
 
-| 层级          | 组件                | 角色                                       | 加载时机             |
-| ------------- | ------------------- | ------------------------------------------ | -------------------- |
+| 层级          | 组件                | 角色                                                 | 加载时机             |
+| ------------- | ------------------- | ---------------------------------------------------- | -------------------- |
 | **L1 — 入口** | `comfyui-animatool` | 情境因果、八维补全、三层 prompt、冲突检查、args 输出 | Anima 生图触发时     |
-| **L2 — 校验** | `danbooru-tags`     | exact / prefix 校验、批量验证、必要候选    | 需要 hard anchors 时 |
-| **L3 — 执行** | `comfyui-manager`   | validate / submit / run / 排障 / 缓存输出  | args 准备完成后      |
+| **L2 — 校验** | `danbooru-tags`     | exact / prefix 校验、批量验证、必要候选              | 需要 hard anchors 时 |
+| **L3 — 执行** | `comfyui-manager`   | validate / submit / run / 排障 / 缓存输出            | args 准备完成后      |
 
 这条链路不做多代理分工，不创建 route contract，不把用户需求拆成过度流程。模型先理解画面和故事因果，skill 只兜住 Anima、Danbooru 和 ComfyUI 的硬规则。
 
@@ -63,8 +63,7 @@ comfyui-good-anima/
 ├── comfyui-animatool/
 │   ├── SKILL.md                # Anima 生图唯一入口：情境因果、三层 prompt、args
 │   └── references/
-│       ├── artist-style-research.md # 只在研究画师风格时读取
-│       └── failure-patterns.md      # 只在出图失败/畸形/归属混乱时读取
+│       └── anima-reference.md  # 画师风格研究 + 出图失败/畸形/归属混乱排障（按需读取）
 ├── danbooru-tags/
 │   ├── SKILL.md                # Danbooru tag 检索与校验
 │   ├── bin/danbooru-tags.exe   # Rust CLI（预编译）
@@ -230,15 +229,16 @@ masterpiece, best quality, score_7, safe
 
 在 ComfyUI `custom_nodes/` 目录中安装：
 
-| 节点                        | 用途                                                  | 安装地址                                                                                        |
-| --------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **AnimaBoosterLoader**      | Anima 模型加载器 + SageAttention(自动回退) + JIT 编译 | [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)                 |
-| **FLS_SamplerV4**           | Foveated Latent Sampling 细节增强                     | [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler) |
-| **AnimaTeaCache**           | TeaCache 推理加速                                     | [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)                           |
-| **AnimaArtistPack**         | 画师多风格融合（仅 artist mixer）                     | 同 ANIMA_BOOSTER                                                                                |
-| **AnimaArtistCrossAttn**    | 画师跨注意力混合（仅 artist mixer）                   | 同 ANIMA_BOOSTER                                                                                |
-| **RES4LYF**                 | `beta57` 调度器                                       | [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF)                       |
-| **RTXVideoSuperResolution** | RTX VSR 2× 放大（仅 RTX 显卡）                        | [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)     |
+| 节点                        | 用途                                                              | 安装地址                                                                                        |
+| --------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **AnimaBoosterLoader**      | Anima 模型加载器 + SageAttention(自动回退) + JIT 编译             | [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)                 |
+| **FLS_SamplerV4**           | Foveated Latent Sampling 细节增强                                 | [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler) |
+| **AnimaTeaCache**           | TeaCache 推理加速                                                 | [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)                           |
+| **AnimaLayerReplayPatcher** | Anima 推理加速（仅 enhancer workflow，提速约 30%，可能锐化/降质） | [AdamNizol/ComfyUI-Anima-Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer)         |
+| **AnimaArtistPack**         | 画师多风格融合（仅 artist mixer）                                 | [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)                       |
+| **AnimaArtistCrossAttn**    | 画师跨注意力混合（仅 artist mixer）                               | [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)                       |
+| **RES4LYF**                 | `beta57` 调度器                                                   | [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF)                       |
+| **RTXVideoSuperResolution** | RTX VSR 2× 放大（仅 RTX 显卡）                                    | [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)     |
 
 **快速安装（PowerShell）：**
 
@@ -247,6 +247,8 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/BlackSnowSkill/ANIMA_BOOSTER.git
 git clone https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler.git
 git clone https://github.com/daraskme/comfy_anima_tea_cache.git
+git clone https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git
+git clone https://github.com/An1X3R/Anima-Artist-Mixer.git
 git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 git clone https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI.git
 ```
@@ -381,13 +383,13 @@ comfyui-manager
 
 ## 工作流说明
 
-| 工作流 ID                                   | 用途                          | LoRA                                |
-| ------------------------------------------- | ----------------------------- | ----------------------------------- |
-| `anima-txt2img-aesthetic-lora`              | **默认生图**                  | 双美学 LoRA + TeaCache + RTX VSR 2x |
-| `anima-txt2img-base`                        | 基础版（无 LoRA，对比测试用） | 无                                  |
-| `anima-txt2img-aesthetic-lora-enhancer`     | 增强版                        | 美学 LoRA + 增强节点                |
-| `anima-txt2img-aesthetic-lora-fixed`        | 固定参数版                    | 双美学 LoRA                         |
-| `anima-txt2img-aesthetic-lora-artist-mixer` | **画师融合**                  | 双美学 LoRA + AnimaArtistMixer      |
+| 工作流 ID                                   | 用途                                        | LoRA                                |
+| ------------------------------------------- | ------------------------------------------- | ----------------------------------- |
+| `anima-txt2img-aesthetic-lora`              | **默认生图**                                | 双美学 LoRA + TeaCache + RTX VSR 2x |
+| `anima-txt2img-base`                        | 基础版（无 LoRA，对比测试用）               | 无                                  |
+| `anima-txt2img-aesthetic-lora-enhancer`     | 加速版（提速约 30%，有锐化/质量下降副作用） | 美学 LoRA + AnimaLayerReplayPatcher |
+| `anima-txt2img-aesthetic-lora-fixed`        | 固定参数版                                  | 双美学 LoRA                         |
+| `anima-txt2img-aesthetic-lora-artist-mixer` | **画师融合**                                | 双美学 LoRA + AnimaArtistMixer      |
 
 ## 工作流类型
 
@@ -473,6 +475,13 @@ node ".\comfyui-manager\workspace\run_workflow_args.js" validate local/anima-txt
 - **ComfyUI Manager**：[ltdrdata/ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)
 - **ComfyUI Skill CLI**：[HuangYuChuh/ComfyUI_Skill_CLI](https://github.com/HuangYuChuh/ComfyUI_Skill_CLI) — `pip install comfyui-skill-cli` ([PyPI](https://pypi.org/project/comfyui-skill-cli/))
 - **Danbooru**：[danbooru.donmai.us](https://danbooru.donmai.us/) — 标签系统
+- **ANIMA_BOOSTER**：[BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)
+- **ComfyUI-Anima-Enhancer**：[AdamNizol/ComfyUI-Anima-Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer)
+- **Anima-Artist-Mixer**：[An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)
+- **FLSamplerV4**：[BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)
+- **TeaCache**：[ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)
+- **RES4LYF**：[ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF) — `beta57` 调度器
+- **RTX Nodes**：[Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)
 
 ---
 
@@ -492,7 +501,7 @@ GPLv3 — 详见 [LICENSE](LICENSE) 文件。
 
 ### 节点与加速
 
-感谢 [**BlackSnowSkill**](https://github.com/BlackSnowSkill) 开发的 [ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER) 和 [ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)。ANIMA_BOOSTER 提供了 AnimaBoosterLoader 节点，让模型加载与 Sage Attention 加速成为可能；它的 AnimaArtistPack 和 AnimaArtistCrossAttn 节点更是画师多风格融合的关键。FLSampler 则为采样过程带来了 Foveated Latent Sampling 技术，在提升细节清晰度的同时对模型进行二次增噪和加速优化。没有这些节点，Anima 模型的潜力就无法被充分释放。
+感谢 [**BlackSnowSkill**](https://github.com/BlackSnowSkill) 开发的 [ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER) 和 [ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)。ANIMA_BOOSTER 提供了 AnimaBoosterLoader 节点，让模型加载与 Sage Attention 加速成为可能。画师多风格融合依赖 [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer) 提供的 AnimaArtistPack 与 AnimaArtistCrossAttn 节点。FLSampler 则为采样过程带来了 Foveated Latent Sampling 技术，在提升细节清晰度的同时对模型进行二次增噪和加速优化。没有这些节点，Anima 模型的潜力就无法被充分释放。
 
 感谢 [**Comfy-Org**](https://github.com/Comfy-Org) 维护的 [Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)（老黄的 RTX VSR 节点）。它让图片放大变得极快且高质量，在保持画质的同时大幅缩短了放大耗时，是出图流程中不可或缺的一环。
 
