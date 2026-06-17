@@ -475,15 +475,6 @@ Keep their hands separated and both faces readable.
 - [ ] `hard_tags`、`soft_phrases`、`nltags_block` 已分离，nltags 位于 `prompt_11` 末尾
 - [ ] 冲突检查已通过
 
-全部通过后，执行：
-
-```bash
-node run_workflow_args.js submit <workflow_id> <args_json_file>
-```
-
-`submit` 非阻塞；用户要求看结果时才查状态。
-
----
 
 ## 15. 完整示例
 
@@ -549,4 +540,3 @@ node run_workflow_args.js submit <workflow_id> <args_json_file>
 | 用户要求画师背景、画风特色、构图倾向、"查底细"                          | `references/artist-style-research.md` |
 | 生图结果出现人脸变形、切线粘连、比例失调、肢体归属混乱等 Anima 特有失败 | `references/failure-patterns.md`      |
 | 需要 tag 查询详细策略                                                   | `danbooru-tags/SKILL.md`              |
-| 需要执行 workflow、排障、管理服务器                                     | `comfyui-manager/SKILL.md`            |
