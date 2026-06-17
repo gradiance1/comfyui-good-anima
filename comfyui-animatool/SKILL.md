@@ -410,29 +410,14 @@ Keep their hands separated and both faces readable.
 
 ## 13. 参数输出
 
-必须同时输出 `workflow_id` 和 `args`。
-
-- `workflow_id` 通过命令行传 `run_workflow_args.js`，不写进 args 文件。
 - args 文件写扁平 JSON，禁止 `{"args":{...}}` 嵌套。
 
-### workflow_id
-
-- 默认：`local/anima-txt2img-aesthetic-lora`
-- Artist Mixer：`local/anima-txt2img-aesthetic-lora-artist-mixer`
-- 裸模型/对比：`local/anima-txt2img-base`
 
 ### args 必含字段
 
 - `prompt_11`：正向 prompt
 - `prompt_12`：负向 prompt
-- `width`、`height`
-- `batch_size`
-- `steps`：默认 30；高质量/复杂背景/多人/强光影用 40
-- `seed`：可省略；省略时 `comfyui-manager/workspace/run_workflow_args.js` 会自动生成 1~4294967295 的随机整数并写回实际 args。用户指定则保留原值；重绘且未要求换 seed 时保留原 seed；用户要求固定复现时必须写入明确 seed。
-- `rtx_vsr_quality`：默认 `ULTRA`
-- `filename_prefix`：`anima/%year%-%month%-%day%/anima_base_v1_0-<artist|none>-<subject>`
 
-采样器/调度器/CFG 由 workflow 提供，不在 args 中显式传。默认 workflow 使用 `dpmpp_2m_sde_gpu` + `beta57` + CFG `4.5`。
 
 ### 不传字段
 
@@ -442,16 +427,14 @@ Keep their hands separated and both faces readable.
 
 ---
 
-## 14. 调用 manager 前检查
+## 14. 完成前检查
 
 逐项确认：
 
-- [ ] 已有 `workflow_id`
-- [ ] 已有完整 `args`（含 `prompt_11`、`prompt_12`、`width`、`height`、`batch_size`、`steps`、`rtx_vsr_quality`、`filename_prefix`）
+- [ ] 已有完整 `args`（含 `prompt_11`、`prompt_12`）
 - [ ] 视觉简报已完成（或用户已完整给出构图）
 - [ ] tag 校验已完成（hard anchors 已确认）
 - [ ] `hard_tags`、`soft_phrases`、`nltags_block` 已分离，nltags 位于 `prompt_11` 末尾
-- [ ] 冲突检查已通过
 
 
 ## 15. 完整示例
@@ -472,9 +455,8 @@ Keep their hands separated and both faces readable.
 
 **prompt_12:** `worst quality, low quality, score_1, score_2, score_3, blurry, bad anatomy, bad hands, bad feet, extra fingers, missing fingers, distorted face, text, watermark, logo`
 
-**Args:** `{"prompt_11":"...","prompt_12":"...","width":1152,"height":1536,"batch_size":1,"steps":30,"rtx_vsr_quality":"ULTRA","filename_prefix":"anima/%year%-%month%-%day%/anima_base_v1_0-none-kanade_tachibana"}`（seed 省略时由 `run_workflow_args.js` 自动补随机整数）
+**Args:** `{"prompt_11":"...","prompt_12":"..."`
 
-**workflow_id:** `local/anima-txt2img-aesthetic-lora` → 执行 `comfyui-manager` submit。
 
 ---
 
