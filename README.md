@@ -3,8 +3,7 @@
 > 一套面向 AI 编程助手的 ComfyUI + Anima 二次元生图技能包。当前主线是 v2mini：去掉多层代理式路由，只保留 Anima 生图所需的核心约束、Danbooru tag 精确校验和 ComfyUI 执行链路，让 AI 和人类把更多注意力留给画面本身。
 >
 > v2mini 的新核心是“情境因果 → 三层 prompt → 精确执行”：先让模型根据角色、画师、场景和用户意图形成有故事感的画面瞬间，再拆成 `hard_tags`、`soft_phrases`、`nltags_block`，由 `danbooru-tags` 只确认真正的 Danbooru 硬锚点，最后交给 ComfyUI workflow 执行。
->
-> 🌐 **[English Version](./README_EN.md)**
+>> 
 
 ![Anima Base v1.0 预览图](./samples/anima_base_v1_0-rella-sea-margatroid_marisa_00001_.png)
 
@@ -18,25 +17,7 @@
 - **三层 prompt 组装**：`hard_tags` 放确认过的硬锚点，`soft_phrases` 放模型审美短语，`nltags_block` 放空间、动作归属、光影、景深和因果后果。
 - **不可丢事实**：Anima prompt 顺序、三层分离、双 LoRA 质量前缀、负向动态组装、workflow args、seed 行为、`submit` 非阻塞和 PowerShell JSON 编码。
 - **硬锚点精确校验**：角色、作品、画师、服装、道具等 hard anchors 由 `danbooru-tags` 先做 exact / prefix 验证；模糊结果只作候选，不冒充 confirmed tag。
-- **执行层纯粹**：`comfyui-manager` 只执行准备好的 workflow 和 args，不写 prompt、不选画师、不决定构图。
 - **按需参考**：失败模式、画师风格研究等内容留在 references，只有遇到对应问题才读取。
-
----
-
-## 兼容的 AI 编程助手
-
-本项目的 Skills 为 **AI 编程代理（AI Coding Agent）** 设计，任何能执行 Shell 命令的 AI 助手均可使用：
-
-| 助手                 | 支持状态    | 说明                                              |
-| -------------------- | ----------- | ------------------------------------------------- |
-| **🟢 Snow**          | ✅ 完美支持 | **国内首选推荐** — 原生支持 Skills 系统，即开即用 |
-| **🟢 Claude Code**   | ✅ 完美支持 | Anthropic 官方 CLI，支持 Shell 命令执行           |
-| **🟢 Codex**         | ✅ 完美支持 | 全功能 AI 编程代理，完全兼容                      |
-| **🟢 PI**            | ✅ 完美支持 | 轻量级 AI 编程代理，支持 Skills 系统              |
-| **🟢 OpenClaw**      | ✅ 支持     | 支持 ComfyUI_Skill_CLI 集成的 Agents              |
-| **🟡 其他 AI Agent** | ✅ 完美支持 | 只要能执行 PowerShell/Shell 命令即可              |
-
-> 💡 **推荐使用 [Snow](https://snowcli.com/docs) — 目前国内体验最好的 AI 编程代理**。
 
 ---
 
@@ -47,10 +28,9 @@ v2mini 采用三段式链路：
 | 层级          | 组件                | 角色                                                 | 加载时机             |
 | ------------- | ------------------- | ---------------------------------------------------- | -------------------- |
 | **L1 — 入口** | `comfyui-animatool` | 情境因果、八维补全、三层 prompt、冲突检查、args 输出 | Anima 生图触发时     |
-| **L2 — 校验** | `danbooru-tags`     | exact / prefix 校验、批量验证、必要候选              | 需要 hard anchors 时 |
-| **L3 — 执行** | `comfyui-manager`   | validate / submit / run / 排障 / 缓存输出            | args 准备完成后      |
+| **L2 — 校验** | `danbooru-tags`     | exact / prefix 校验、批量验证、必要候选              | 需要 hard anchors 时 ||
 
-这条链路不做多代理分工，不创建 route contract，不把用户需求拆成过度流程。模型先理解画面和故事因果，skill 只兜住 Anima、Danbooru 和 ComfyUI 的硬规则。
+这条链路不做多代理分工，不创建 route contract，不把用户需求拆成过度流程。模型先理解画面和故事因果，skill 只兜住 Anima、Danbooru 的硬规则。
 
 ---
 
@@ -74,13 +54,6 @@ comfyui-good-anima/
 │   ├── tags_index.sqlite       # SQLite 高速索引
 │   ├── *.py                    # 索引构建脚本
 │   └── rust-cli/               # danbooru-tags Rust 源码
-├── comfyui-manager/
-│   ├── SKILL.md                # ComfyUI 执行与运维
-│   ├── workspace/              # workflow JSON + 执行脚本
-│   │   ├── config.json
-│   │   ├── run_workflow_args.js
-│   │   ├── cache_anima_outputs.js
-│   │   └── data/               # 工作流定义 + local/ 导入映射
 ├── samples/                    # 示例图
 ├── legacy/v1/                  # V1 归档版本，仅历史参考，保留在 git
 ├── legacy/V3/                  # V3 本地封存版本，不纳入 git
@@ -89,9 +62,7 @@ comfyui-good-anima/
 
 ### 版本归档规则
 
-- 当前主线只维护 v2mini：`comfyui-animatool`、`danbooru-tags`、`comfyui-manager`。
-- `legacy/v1/` 作为早期硬约束链路归档，可用于对照规则退化，不作为运行入口。
-- `legacy/V3/` 作为本地封存版本保留，不提交到 git，不作为安装路径或技能根目录。
+- 当前主线只维护 v2mini：`comfyui-animatool`、`danbooru-tags`。
 - 新规则优先进入三大核心 skill；失败排查和画师研究只放入 `comfyui-animatool/references/`。
 
 ---
@@ -147,151 +118,23 @@ tags_index.sqlite (高速本地索引)
 
 | 依赖                  | 版本要求       | 说明                                                |
 | --------------------- | -------------- | --------------------------------------------------- |
-| **操作系统**          | Windows 10/11  | PowerShell 5.x+，本项目使用 Windows PowerShell 语法 |
-| **ComfyUI**           | 最新版         | 图片生成后端                                        |
-| **comfyui-skill-cli** | 最新版         | agent 代理与 ComfyUI 之间的桥梁                     |
+| **操作系统**          | Windows 10/11  | PowerShell 5.x+，本项目使用 Windows PowerShell 语法 |           |
 | **Node.js**           | 18+            | 用于运行工作流执行脚本                              |
-| **Python**            | 3.10+          | 仅标签索引初始化时需要，日常生图不需要              |
-| **NVIDIA GPU**        | 8GB+ VRAM      | 推荐 12GB+，用于 Anima 推理和 RTX VSR 放大          |
-| **CUDA**              | 12.8+          | GPU 加速必需                                        |
-| **PyTorch**           | 兼容 CUDA 12.8 | 配合 xformers 0.0.3.0 使用                          |
-| **xformers**          | 0.0.3.0        | 内存优化加速                                        |
+| **Python**            | 3.10+          | 仅标签索引初始化时需要，日常生图不需要              |                                    |
 
-### ComfyUI 启动推荐
 
-使用 Sage Attention 模式启动可获得最佳性能（需 ANIMA_BOOSTER 节点支持）：
-
-```powershell
-python main.py --use-sage-attention
-```
-
-> **注意：** 默认采样器使用 `dpmpp_2m_sde_gpu` + `beta57` scheduler。`beta57` 调度器来自 [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF) 节点包，需额外安装。
-
----
-
-## 模型安装
-
-### 基础模型
-
-| 文件                          | 放置路径                           | 大小     |
-| ----------------------------- | ---------------------------------- | -------- |
-| `anima-base-v1.0.safetensors` | `ComfyUI/models/diffusion_models/` | ~12.2 GB |
-
-### CLIP & VAE
-
-| 文件                          | 放置路径                        |
-| ----------------------------- | ------------------------------- |
-| `qwen_3_06b_base.safetensors` | `ComfyUI/models/text_encoders/` |
-| `qwen_image_vae.safetensors`  | `ComfyUI/models/vae/`           |
-
-### LoRA（双美学增强）
-
-| 文件                                        | 放置路径                | 用途                                                                                                                                                                                                                          |
-| ------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `anima-highres-aesthetic-boost.safetensors` | `ComfyUI/models/loras/` | 官方 LoRA — 主要为稳定高分辨率(1536-2048px)生图，美学提升较微妙 [CivitAI](https://civitai.red/models/2540444/anima-highresaesthetic-boost)                                                                                    |
-| `anima-base-1-masterpiece-v51.safetensors`  | `ComfyUI/models/loras/` | 美学质量修饰器，触发词 `masterpiece` `very aesthetic` — 作者推荐结构: `masterpiece, best quality, very aesthetic` [CivitAI](https://civitai.red/models/929497/aesthetic-quality-modifiers-masterpiece?modelVersionId=2961717) |
-
-> **模型来源**：[circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) — CircleStone Labs 与 Comfy Org 联合发布。训练数据截止 2025 年 9 月。
-
-### 质量前缀
-
-默认工作流使用双美学 LoRA，`masterpiece-v51` LoRA 基于 PonyV7 美学评分训练，**必须**使用以下前缀：
-
-```text
-masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025, nsfw
-```
-
-**备选** — 裸模型（无 LoRA，仅对比测试）：
-
-```text
-masterpiece, best quality, score_7, safe
-```
-
-> ⚠️ 质量前缀与 LoRA 栈绑定。将 `score_7` 替换到 LoRA 工作流会降低 `masterpiece-v51` 效果。HuggingFace 页面描述的是裸模型，本项目使用的是增强工作流。
-
-### 采样器与调度器
-
-默认工作流依赖 FLSamplerV4 + RES4LYF 自定义节点：
-
-| 组件          | 默认值             | 依赖               |
-| ------------- | ------------------ | ------------------ |
-| 采样器        | `dpmpp_2m_sde_gpu` | FLSamplerV4 节点   |
-| 调度器        | `beta57`           | RES4LYF 节点       |
-| 步数          | 30（高质量用 40）  | —                  |
-| CFG           | 4.5（范围 4–5）    | —                  |
-| SageAttention | 启用               | AnimaBoosterLoader |
-
-若 RES4LYF 不可用，降级为 `beta` 或 `ddim_uniform`。裸模型使用 `er_sde` + `simple`（按官方文档）。
-
----
-
-## 必需自定义节点
-
-在 ComfyUI `custom_nodes/` 目录中安装：
-
-| 节点                        | 用途                                                              | 安装地址                                                                                        |
-| --------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **AnimaBoosterLoader**      | Anima 模型加载器 + SageAttention(自动回退) + JIT 编译             | [BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)                 |
-| **FLS_SamplerV4**           | Foveated Latent Sampling 细节增强                                 | [BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler) |
-| **AnimaTeaCache**           | TeaCache 推理加速                                                 | [ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)                           |
-| **AnimaLayerReplayPatcher** | Anima 推理加速（仅 enhancer workflow，提速约 30%，可能锐化/降质） | [AdamNizol/ComfyUI-Anima-Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer)         |
-| **AnimaArtistPack**         | 画师多风格融合（仅 artist mixer）                                 | [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)                       |
-| **AnimaArtistCrossAttn**    | 画师跨注意力混合（仅 artist mixer）                               | [An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)                       |
-| **RES4LYF**                 | `beta57` 调度器                                                   | [ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF)                       |
-| **RTXVideoSuperResolution** | RTX VSR 2× 放大（仅 RTX 显卡）                                    | [Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)     |
-
-**快速安装（PowerShell）：**
-
-```powershell
-cd ComfyUI/custom_nodes
-git clone https://github.com/BlackSnowSkill/ANIMA_BOOSTER.git
-git clone https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler.git
-git clone https://github.com/daraskme/comfy_anima_tea_cache.git
-git clone https://github.com/AdamNizol/ComfyUI-Anima-Enhancer.git
-git clone https://github.com/An1X3R/Anima-Artist-Mixer.git
-git clone https://github.com/ClownsharkBatwing/RES4LYF.git
-git clone https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI.git
-```
-
-安装后重启 ComfyUI，验证：`comfyui-skill deps check local/anima-txt2img-aesthetic-lora`
-
----
-
-## ⚡ 核心依赖：comfyui-skill CLI
-
-**这是整个链路中最重要的组件。** 没有它，AI 编程助手（Snow / Codex）无法与本地 ComfyUI 通信和执行工作流。
-
-| 项目        | 链接                                                                              |
-| ----------- | --------------------------------------------------------------------------------- |
-| GitHub 仓库 | [HuangYuChuh/ComfyUI_Skill_CLI](https://github.com/HuangYuChuh/ComfyUI_Skill_CLI) |
-| PyPI 包     | [comfyui-skill-cli](https://pypi.org/project/comfyui-skill-cli/)                  |
-
-```powershell
-pip install comfyui-skill-cli
-```
-
-> 安装后，AI 助手可通过 `comfyui-skill` 命令查询模型列表、导入工作流、执行生图和管理队列。
-
----
+----
 
 ## ⚙️ 快速开始
 
-### 1. 安装 ComfyUI 和 comfyui-skill CLI
-
-```powershell
-git clone https://github.com/comfyanonymous/ComfyUI
-cd ComfyUI
-pip install comfyui-skill-cli
-```
-
-### 1b. 设置技能根目录（必需）
+### 
+### 1 设置技能根目录（必需）
 
 `COMFYUI_GOOD_ANIMA_SKILLS_DIR` 必须指向安装后的 skills 根目录，目录下应直接包含：
 
 ```text
 comfyui-animatool/
 danbooru-tags/
-comfyui-manager/
 ```
 
 ```powershell
@@ -306,33 +149,9 @@ $env:COMFYUI_GOOD_ANIMA_SKILLS_DIR = "C:\Users\12971\skills"
 如果你的 skills 安装在其他位置，把路径替换为自己的 skills 根目录。不要指向 `legacy/v1`、`legacy/V3` 或其他实验副本。
 
 ---
+### 
 
-### 2. 放置模型和节点
-
-按上方表格将模型文件放入对应目录，克隆自定义节点，然后启动 ComfyUI。
-
-### 3. 导入工作流
-
-```powershell
-cd comfyui-good-anima/comfyui-manager/workspace
-comfyui-skill workflow import data/anima-txt2img-aesthetic-lora.json --check-deps --json
-comfyui-skill workflow import data/anima-txt2img-aesthetic-lora-artist-mixer.json --check-deps --json
-comfyui-skill workflow import data/anima-txt2img-base.json --check-deps --json
-```
-
-### 4. 执行生图
-
-AI 助手触发 `comfyui-animatool` 后会输出 `workflow_id` 和扁平 args JSON，再交给 `comfyui-manager`：
-
-```powershell
-cd comfyui-good-anima/comfyui-manager/workspace
-node ./run_workflow_args.js submit local/anima-txt2img-aesthetic-lora ./args_anima.json
-```
-
-`run_workflow_args.js` 会通过 argv 安全传递 JSON args。省略 seed 时脚本会自动生成随机 seed 并写回 args。
-`submit` 非阻塞返回 `prompt_id`；需要等图或查看结果时再显式查询状态。
-
-### 5. 开始对话
+### 2. 开始对话
 
 直接描述你想生成什么：
 
@@ -370,41 +189,14 @@ comfyui-animatool
     │     └── 按脸、手、脚、多人、透视、持物、动态动作风险追加
     │
     ▼
-comfyui-manager
-    │
-    ├── validate
-    ├── submit
-    └── run / cache（仅用户要求时）
+
 ```
 
 核心原则：不要把普通创作判断写死；只把会导致 Anima 或 workflow 明确失败的边界写死。
 
 ---
 
-## 工作流说明
-
-| 工作流 ID                                   | 用途                                        | LoRA                                |
-| ------------------------------------------- | ------------------------------------------- | ----------------------------------- |
-| `anima-txt2img-aesthetic-lora`              | **默认生图**                                | 双美学 LoRA + TeaCache + RTX VSR 2x |
-| `anima-txt2img-base`                        | 基础版（无 LoRA，对比测试用）               | 无                                  |
-| `anima-txt2img-aesthetic-lora-enhancer`     | 加速版（提速约 30%，有锐化/质量下降副作用） | 美学 LoRA + AnimaLayerReplayPatcher |
-| `anima-txt2img-aesthetic-lora-fixed`        | 固定参数版                                  | 双美学 LoRA                         |
-| `anima-txt2img-aesthetic-lora-artist-mixer` | **画师融合**                                | 双美学 LoRA + AnimaArtistMixer      |
-
-## 工作流类型
-
-| 类型             | 处理方式                                          | 说明                              |
-| ---------------- | ------------------------------------------------- | --------------------------------- |
-| 文生图           | `comfyui-animatool`                               | 默认入口，生成 prompt + args      |
-| 文生图 + 双 LoRA | `local/anima-txt2img-aesthetic-lora`              | 当前默认工作流                    |
-| 裸模型对比       | `local/anima-txt2img-base`                        | 用于排障或对比测试                |
-| 画师融合         | `local/anima-txt2img-aesthetic-lora-artist-mixer` | 仅用户明确要求融合时使用          |
-| 批量             | 单 prompt 用 `batch_size`，多 prompt 分 job       | 不把多个不同主题塞进同一个 prompt |
-| 随机 / 抽卡      | `danbooru-tags --random`                          | 先抽候选，再由 animatool 组装     |
-| 图生图           | 暂不混入默认链路                                  | 后续可独立 skill 化               |
-
----
-
+## 
 ## 🐍 Python 脚本说明
 
 `danbooru-tags/` 目录中包含以下 Python 脚本，**仅用于首次初始化标签索引**，日常生图不需要运行：
@@ -457,31 +249,10 @@ python "C:\Users\12971\skills\.system\skill-creator\scripts\quick_validate.py" "
 node --check ".\comfyui-manager\workspace\run_workflow_args.js"
 ```
 
-`comfyui-skill-cli` 升级后，先执行：
-
-```powershell
-comfyui-skill deps check local/anima-txt2img-aesthetic-lora
-node ".\comfyui-manager\workspace\run_workflow_args.js" validate local/anima-txt2img-aesthetic-lora ".\comfyui-manager\workspace\args_sample.json"
-```
-
-将 `args_sample.json` 替换为实际准备好的 args 文件。确认 validate / submit 行为正常后再进入正式生图。
-
 ---
 
 ## 参考链接
 
-- **模型**：[circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) — 官方模型页
-- **ComfyUI**：[comfyanonymous/ComfyUI](https://github.com/comfyanonymous/ComfyUI)
-- **ComfyUI Manager**：[ltdrdata/ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)
-- **ComfyUI Skill CLI**：[HuangYuChuh/ComfyUI_Skill_CLI](https://github.com/HuangYuChuh/ComfyUI_Skill_CLI) — `pip install comfyui-skill-cli` ([PyPI](https://pypi.org/project/comfyui-skill-cli/))
-- **Danbooru**：[danbooru.donmai.us](https://danbooru.donmai.us/) — 标签系统
-- **ANIMA_BOOSTER**：[BlackSnowSkill/ANIMA_BOOSTER](https://github.com/BlackSnowSkill/ANIMA_BOOSTER)
-- **ComfyUI-Anima-Enhancer**：[AdamNizol/ComfyUI-Anima-Enhancer](https://github.com/AdamNizol/ComfyUI-Anima-Enhancer)
-- **Anima-Artist-Mixer**：[An1X3R/Anima-Artist-Mixer](https://github.com/An1X3R/Anima-Artist-Mixer)
-- **FLSamplerV4**：[BlackSnowSkill/ComfyUI-BSS_FLSampler](https://github.com/BlackSnowSkill/ComfyUI-BSS_FLSampler)
-- **TeaCache**：[ComfyUI-TeaCache](https://github.com/daraskme/comfy_anima_tea_cache)
-- **RES4LYF**：[ClownsharkBatwing/RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF) — `beta57` 调度器
-- **RTX Nodes**：[Comfy-Org/Nvidia_RTX_Nodes_ComfyUI](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)
 
 ---
 
